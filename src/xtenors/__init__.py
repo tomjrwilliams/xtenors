@@ -1,5 +1,5 @@
 
-from .tenors import (
+from .xtenors import (
     UNIT,
     update_unit,
     update_n,
