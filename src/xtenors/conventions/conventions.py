@@ -1,16 +1,17 @@
-import typing
 
-import importlib.util
 import sys
+import importlib.util
 
 spec = importlib.util.spec_from_file_location(
-    "xtuples", "../src/xtuples/__init__.py"
+    "xtuples", "../xtuples/src/xtuples/__init__.py"
 )
 xtuples = importlib.util.module_from_spec(spec)
 sys.modules["xtuples"] = xtuples
 spec.loader.exec_module(xtuples)
 
 # ---------------------------------------------------------------
+
+import typing
 
 import enum
 import datetime

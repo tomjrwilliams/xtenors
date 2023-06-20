@@ -1,16 +1,17 @@
-import typing
 
-import importlib.util
 import sys
+import importlib.util
 
 spec = importlib.util.spec_from_file_location(
-    "xtuples", "../src/xtuples/__init__.py"
+    "xtuples", "../xtuples/src/xtuples/__init__.py"
 )
 xtuples = importlib.util.module_from_spec(spec)
 sys.modules["xtuples"] = xtuples
 spec.loader.exec_module(xtuples)
 
 # ---------------------------------------------------------------
+
+import typing
 
 from contextlib import contextmanager
 
@@ -149,7 +150,7 @@ def tenor_rsub(tenor, dt):
     >>> Tenor("D", 1) - datetime.date(2023, 1, 1)
     Traceback (most recent call last):
         ...
-    TypeError: unsupported operand type(s) for tenor_sub: <class '__local__.tenors.Tenor'> and <class 'datetime.date'>
+    TypeError: unsupported operand type(s) for tenor_sub: <class 'xtenors.tenors.Tenor'> and <class 'datetime.date'>
     >>> datetime.date(2023, 1, 1) - Tenor("D", 1)
     datetime.date(2022, 12, 31)
     """
