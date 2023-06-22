@@ -227,20 +227,35 @@ CALENDARS_COUNTRY = xtuples.iTuple(
     holidays.utils.list_supported_countries()
 )
 
-def _get_schedule(calendar, starting=None, ending=None, n = None):
+def _get_schedule(
+    calendar=None,
+    country=None,
+    market=None,
+    starting=None,
+    ending=None,
+    n = None
+):
 
-    if calendar == conventions.CALENDAR.ALL:
-        return AllSchedule(AllIterator())
+    if country is not None:
+        assert country in CALENDARS_COUNTRY, country
+        return _get_country_schedule(country)
 
-    elif calendar == conventions.CALENDAR.WEEKDAYS:
-        return WeekdaysSchedule(WeekdaysIterator())
-
-    elif calendar in CALENDARS_MARKET:
+    elif market is not None:
         pass
 
     else:
-        assert calendar in CALENDARS_COUNTRY, calendar
-        return _get_country_schedule(calendar)
+        if calendar == conventions.CALENDAR.ALL:
+            return AllSchedule(AllIterator())
+
+        elif calendar == conventions.CALENDAR.WEEKDAYS:
+            return WeekdaysSchedule(WeekdaysIterator())
+
+        elif calendar in CALENDARS_MARKET:
+            pass
+
+        else:
+            assert calendar in CALENDARS_COUNTRY, calendar
+            return _get_country_schedule(calendar)
 
     cache = _get_calendar_cache()
 
@@ -280,6 +295,8 @@ def _get_schedule(calendar, starting=None, ending=None, n = None):
 
 def calendar_iterator(
     calendar=None,
+    country=None,
+    market=None,
     starting=None,
     ending=None,
     n = None,
@@ -303,17 +320,27 @@ def calendar_iterator(
     >>> xtuples.iTuple(calendar_iterator("NYSE", ending=datetime.date(2022, 12, 28), starting=datetime.date(2023, 1, 5)))
     iTuple(datetime.date(2023, 1, 5), datetime.date(2023, 1, 4), datetime.date(2023, 1, 3), None, None, None, datetime.date(2022, 12, 30), datetime.date(2022, 12, 29), datetime.date(2022, 12, 28))
     """
-
-    # | gregorian -> ...
-    # | country -> ...
-    # | market -> ...
-
-    if calendar is None:
+    assert len([k for k in [
+        calendar,
+        country,
+        market,
+    ] if k is not None]) <= 1, dict(
+        calendar=calendar,
+        country=country,
+        market=market,
+    )
+    if (
+        calendar is None
+        and market is None
+        and country is None
+    ):
         calendar = conventions.get_convention(
             conventions.CALENDAR.FIELD
         )
     schedule = _get_schedule(
-        calendar,
+        calendar=calendar,
+        country=country,
+        market=market,
         starting=starting,
         ending=ending,
         n=n,
@@ -344,6 +371,8 @@ def calendar_iterator(
         else:
             assert False, dict(
                 calendar=calendar,
+                country=country,
+                market=market,
                 starting=starting,
                 ending=ending,
                 n=n
@@ -369,7 +398,9 @@ def calendar_iterator(
         for d in _date_iter(ending, step = -1, n = n):
             if i < 0:
                 schedule = _get_schedule(
-                    calendar,
+                    calendar=calendar,
+                    country=country,
+                    market=market,
                     ending=d
                     #
                 )
