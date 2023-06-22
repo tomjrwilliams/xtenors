@@ -1,7 +1,8 @@
 
 from .conventions import (
     update_history,
-    Convention,
+    IntConvention,
+    StrConvention,
     get_convention,
     get_conventions,
     set_conventions,

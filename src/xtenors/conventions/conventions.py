@@ -23,7 +23,14 @@ from contextlib import contextmanager
 update_history = xtuples.nTuple.replace("history")
 
 @xtuples.nTuple.decorate
-class Convention(typing.NamedTuple):
+class IntConvention(typing.NamedTuple):
+    default: int = None
+    history: xtuples.iTuple = xtuples.iTuple()
+
+    update_history = update_history
+
+@xtuples.nTuple.decorate
+class StrConvention(typing.NamedTuple):
     default: str = None
     history: xtuples.iTuple = xtuples.iTuple()
 
@@ -37,7 +44,7 @@ class Convention(typing.NamedTuple):
 def get_convention(k):
     if xtuples.nTuple.is_instance(k):
         k = k.FIELD
-    con = CONVENTIONS.get(k, Convention())
+    con = CONVENTIONS.get(k, StrConvention())
     return (
         con.default 
         if not con.history.len() 
@@ -51,6 +58,7 @@ def get_conventions(*ks):
     }
 
 # TODO: set defaults (to be called once at init)
+# enforce only called once
 
 @contextmanager
 def set_conventions(**conventions):
@@ -62,7 +70,7 @@ def set_conventions(**conventions):
     """
     try:
         for k, v in conventions.items():
-            con = CONVENTIONS.get(k, Convention())
+            con = CONVENTIONS.get(k, StrConvention())
             CONVENTIONS[k] = con.update_history(
                 con.history.append(v)
             )
@@ -70,14 +78,14 @@ def set_conventions(**conventions):
     finally:
         for k in conventions.keys():
             CONVENTIONS[k] = con.pipe(
-                Convention.update_history, 
+                update_history, 
                 con.history.pop_last()
             )
 
 # ---------------------------------------------------------------
 
 @xtuples.nTuple.enum
-class LIBRARY(typing.NamedTuple):
+class _LIBRARY(typing.NamedTuple):
     PYTHON: str = "PYTHON"
     # separate types for deafult to date or datetime?
 
@@ -90,10 +98,12 @@ class LIBRARY(typing.NamedTuple):
 
     current = get_convention
 
+LIBRARY = _LIBRARY()
+
 # ---------------------------------------------------------------
 
 @xtuples.nTuple.enum
-class COUNT(typing.NamedTuple):
+class _COUNT(typing.NamedTuple):
 
     SIMPLE: str = "SIMPLE"
 
@@ -112,10 +122,12 @@ class COUNT(typing.NamedTuple):
     # act_365l
     # simple
 
+COUNT = _COUNT()
+
 # ---------------------------------------------------------------
 
 @xtuples.nTuple.enum
-class ROLL(typing.NamedTuple):
+class _ROLL(typing.NamedTuple):
 
     ACTUAL: str = "ACTUAL"
 
@@ -129,24 +141,26 @@ class ROLL(typing.NamedTuple):
 
     current = get_convention
 
+ROLL = _ROLL()
+
 # ---------------------------------------------------------------
 
 @xtuples.nTuple.enum
-class CALENDAR(typing.NamedTuple):
+class _CALENDAR(typing.NamedTuple):
 
-    GREGORIAN: str = "GREGORIAN"
-    # NOTE: no holidays other than weekends
-    # else, any valid value of pandas_market_calendars
-    # or python.calendars (?)
+    ALL: str = "ALL"
+    WEEKDAYS: str = "WEEKDAYS"
 
     FIELD: str = "CALENDAR"
 
     current = get_convention
 
+CALENDAR = _CALENDAR()
+
 # ---------------------------------------------------------------
 
 @xtuples.nTuple.enum
-class FORMAT(typing.NamedTuple):
+class _FORMAT(typing.NamedTuple):
 
     ISO: str = "ISO"
 
@@ -154,30 +168,38 @@ class FORMAT(typing.NamedTuple):
 
     current = get_convention
 
+FORMAT = _FORMAT()
+
 # ---------------------------------------------------------------
 
 # NOTE: needs to be mutable, so dict not NamedTuple
 
 CONVENTIONS = dict(
-    LIBRARY=Convention(
-        default = LIBRARY().PYTHON,
+    LIBRARY=StrConvention(
+        default = LIBRARY.PYTHON,
         #
     ),
-    CALENDAR = Convention(
-        # any valid value of pandas_market_calendars
+    CALENDAR = StrConvention(
+        default=CALENDAR.ALL,
     ),
-    COUNT=Convention(
-        default=COUNT().SIMPLE,
+    MARKET_CALENDARS = IntConvention(
+        default=1,
+    ),
+    COUNTRY_CALENDARS = IntConvention(
+        default=1,
+    ),
+    COUNT=StrConvention(
+        default=COUNT.SIMPLE,
         # NOTE: simple is count all days
     ),
-    ROLL=Convention(
-        default=ROLL().ACTUAL,
+    ROLL=StrConvention(
+        default=ROLL.ACTUAL,
         # NOTE: actual is no roll
         # ie. do not skip weekends / holidays
         # to skip, have to specify HOW to skip
     ),
-    FORMAT=Convention(
-        default=FORMAT().ISO,
+    FORMAT=StrConvention(
+        default=FORMAT.ISO,
         #
     ),
     # tenor_between rounding conventions

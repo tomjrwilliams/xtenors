@@ -34,9 +34,12 @@ path = "src/xtenors/__about__.py"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
+  "pandas",
+  "pandas_market_calendars",
+  "holidays",
 ]
 [tool.hatch.envs.default.scripts]
-test = "pytest {args:tests}"
+test = "pytest --doctest-modules"
 test-cov = "coverage run -m pytest {args:tests}"
 cov-report = [
   "- coverage combine",
