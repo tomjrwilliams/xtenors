@@ -15,10 +15,13 @@ import typing
 
 from contextlib import contextmanager
 
+import calendar as pycalendar
 import datetime
 import pandas
 import holidays
 import pandas_market_calendars
+
+import functools
 
 import collections
 
@@ -26,7 +29,7 @@ from . import conventions
 
 # ---------------------------------------------------------------
 
-def _date_iter(d, step, n = None, max_iter = 10 ** 6):
+def _date_iter(d, step, d2 = None, n = None, max_iter = 10 ** 6):
     i = 0
     done = False
     while not done:
@@ -34,6 +37,8 @@ def _date_iter(d, step, n = None, max_iter = 10 ** 6):
             return
         yield d
         d += datetime.timedelta(days=step)
+        if d2 is not None and d == d2:
+            return
         i += 1
         assert i < max_iter
 
@@ -337,6 +342,7 @@ def calendar_iterator(
         calendar = conventions.get_convention(
             conventions.CALENDAR.FIELD
         )
+        
     schedule = _get_schedule(
         calendar=calendar,
         country=country,
@@ -409,6 +415,15 @@ def calendar_iterator(
             yield iterator.get(i, d)
             i -= 1
 
+def next_valid_date(**kwargs):
+
+    itr = calendar_iterator(**kwargs)
+
+    while (dt_roll := next(itr, None)) is None:
+        pass
+
+    return dt_roll
+
 # ---------------------------------------------------------------
 
 def date_validate(dt):
@@ -439,6 +454,7 @@ def tenor_validate(tenor):
 # TODO: cast_date and cast_datetime and convention?
 # so default time convention needed if convention is datetime
 # eg. open close midday etc.
+
 
 def cast_date(dt):
     """
@@ -479,49 +495,97 @@ def cast_date(dt):
 
 # ---------------------------------------------------------------
 
-def tenor_timedelta(tenor):
-    """
-    >>> Tenor("D", 1).timedelta
-    <bound method tenor_timedelta of Tenor(unit='D', n=1)>
-    >>> Tenor("D", 1).timedelta()
-    datetime.timedelta(days=1)
-    """
-    tenor.validate()
+def unpack_date(dt, library=None):
+    return dt.year, dt.month, dt.day
+
+def day_delta(n, library):
     
-    library_enum = conventions.LIBRARY
-    library = library_enum.current()
+    if library == conventions.LIBRARY.PYTHON:
+        return datetime.timedelta(days=n)
+    elif library == conventions.LIBRARY.PANDAS:
+        return pandas.Timedelta(days=n)
+
+    assert False, n
+
+def overflow_date(y, m, d, calendar = None, roll = None):
+    """
+    >>> overflow_date(2023, 1, 32)
+    datetime.date(2023, 1, 31)
+    """
+    try:
+        dt = datetime.date(y, m, d)
+    except:
+        overflow_enum = conventions.OVERFLOW
+        overflow = overflow_enum.current()
+
+        d_max = pycalendar.monthrange(y, m)[1]
+        assert d > d_max, dict(y=y, m=m, d=d)
+        
+        if overflow == overflow_enum.PREV:
+            dt = datetime.date(y, m, d_max)
+
+        elif overflow == overflow_enum.NEXT:
+            dt = datetime.date(y, m, d_max) + datetime.timedelta(days=delta)
+
+        elif overflow == overflow_enum.ERROR:
+            assert False
+
+        else:
+            assert False, dict(overflow=overflow, enum=overflow_enum)
+    
+    return cast_date(dt)
+
+def adjust_date_forward(dt):
+
+    dt_roll = next_valid_date(starting=dt)
+    
+    if dt_roll.month == dt.month:
+        return dt_roll
+
+    elif (
+        dt_roll.month > dt.month 
+        and roll == roll_enum.FOLLOWING_MODIFIED
+    ):
+        return next_valid_date(ending=dt)
+
+    else:
+        assert False, dict(dt_roll=dt_roll, roll=roll)
+
+def adjust_date_backward(dt):
+
+    dt_roll = next_valid_date(ending=dt)
+    
+    if dt_roll.month == dt.month:
+        return dt_roll
+        
+    elif (
+        dt_roll.month > dt.month 
+        and roll == roll_enum.FOLLOWING_MODIFIED
+    ):
+        return next_valid_date(starting=dt)
+
+    else:
+        assert False, dict(dt_roll=dt_roll, roll=roll)
+
+def adjust_date(dt):
 
     roll_enum = conventions.ROLL
     roll = roll_enum.current()
 
-    if roll == roll_enum.ACTUAL:
-        if tenor.unit == "D":
-            if library == library_enum.PYTHON:
-                return datetime.timedelta(days=tenor.n)
-            elif library == library_enum.PANDAS:
-                return pandas.Timedelta(days=tenor.n)
+    if (
+        roll == roll_enum.FOLLOWING
+        or roll == roll_enum.FOLLOWING_MODIFIED
+    ):
+        return adjust_date_forward(dt, roll)
 
+    elif (
+        roll == roll_enum.PRECEDING
+        or roll == roll_enum.PRECEDING_MODIFIED
+    ):
+        return adjust_date_backward(dt, roll)
 
-    # TODO: need a calendar if we're going to roll
-    # WEEKDAYS implies just skip weekends
-    # if roll is not actual
-
-    # following = next busday
-
-    # following modified = next busday if same month, else prev
-
-    # preceding = prev busday
-
-    # preceding modified = prev busday if same month, else next
-
-    assert False, dict(
-        roll=roll,
-        library=library,
-        tenor=tenor,
-        #
-    )
-
-# ---------------------------------------------------------------
+    else:
+        assert False, dict(roll=roll, roll_enum=roll_enum)
 
 def tenor_add(tenor, dt):
     """
@@ -538,8 +602,49 @@ def tenor_add(tenor, dt):
         assert tenor.unit == dt.unit, dict(tenor=tenor, dt = dt)
         return tenor.update_n(tenor.n + dt.n)
 
-    res = dt + tenor_timedelta(tenor)
-    return cast_date(res)
+    calendar = conventions.CALENDAR.current()
+    library = conventions.LIBRARY.current()
+
+    iteration_enum = conventions.ITERATION
+    iteration = iteration_enum.current()
+
+    if tenor.unit == UNIT.D:
+        if iteration == iteration_enum.WITH_CALENDAR:
+            if n >= 0:
+                itr = calendar_iterator(starting=dt)
+            else:
+                itr = calendar_iterator(ending=dt)
+            i = 0
+            while i < abs(tenor.n):
+                dt = next(itr, None)
+                if dt is not None:
+                    i += 1
+        elif iteration == iteration_enum.WITHOUT_CALENDAR:
+            dt = dt + day_delta(tenor.n, library=library)
+        else:
+            assert False, dict(iteration=iteration, enum=iteration_enum)
+        
+    elif tenor.unit == UNIT.W:
+        dt = dt + day_delta(tenor.n * 7, library=library)
+    else:
+        y, m, d = unpack_date(dt, library=library)
+
+        if tenor.unit == UNIT.M:
+            y_incr, m_incr = divmod(tenor.n, 12)
+            y += y_incr
+            y_incr, m = divmod(m + m_incr, 12)
+            y += y_incr
+        elif tenor.unit == UNIT.Y:
+            y += tenor.y
+        else:
+            assert False, dict(tenor=tenor, dt = dt)
+
+        dt = overflow_date(y, m, d)
+
+    if calendar == conventions.CALENDAR.ALL:
+        return cast_date(dt)
+
+    return cast_date(adjust_date(dt))
 
 # ---------------------------------------------------------------
 
@@ -581,7 +686,196 @@ def tenor_sub(t1, t2):
 
 # ---------------------------------------------------------------
 
-def tenor_between(dt_l, dt_r, unit = "D"):
+def day_count_factor(dt1, dt2, dt3 = None, freq = None):
+    """
+
+    """
+    count_enum = conventions.COUNT
+    count = count_enum.current()
+
+    dc1 = day_count(dt1, dt2)
+
+    min_d = min((dt1, dt2))
+    max_d = max((dt1, dt2))
+
+    if dt3 is not None:
+        dc2 = day_count(dt1, dt3)
+
+    if count in conventions.COUNT_360:
+        return dc1 / 360
+    
+    elif count == count_enum.ACTUAL_365_F:
+        return dc1 / 365
+    
+    elif count == count_enum.ACTUAL_360:
+        return dc1 / 360
+    
+    elif count == count_enum.ACTUAL_364:
+        return dc1 / 364
+    
+    elif count == count_enum.ACTUAL_ACTUAL_ICMA:
+        return dc1 / (freq * dc2)
+    
+    elif count == count_enum.ACTUAL_365_L:
+        if freq != 1 and _is_leap_year(dt2.year):
+            div = 366
+        elif freq == 1 and any((
+            _is_leap_year(y)
+            for y in range(min_d.year, max_d.year + 1)
+        )):
+            div = 366
+        else:
+            div = 365
+        
+        return dc1 / div
+
+    elif count == count_enum.ACTUAL_ACTUAL_ISDA:
+        if dt1.year == dt.year:
+            return dc1 / (
+                366 if _is_leap_year(dt1.year) else 365
+            )
+        
+        sign = 1 if dt1 < dt2 else -1
+
+        left_stub = day_count(min_d, datetime.date(
+            min_d.year + 1, 1, 1
+        ))
+        right_stub = day_count(datetime.date(
+            max_d.year - 1, 12, 31
+        ), max_d)
+
+        y_delta = max_d.year - min_d.year
+
+        return sign * sum(
+            y_delta - 1,
+            left_stub / (
+                366 if _is_leap_year(min_d.year) else 365
+            ),
+            right_stub / (
+                366 if _is_leap_year(max_d.year) else 365
+            ),
+        )
+
+    elif count == count_enum.ACTUAL_ACTUAL_AFB:
+
+        sign = 1 if dt1 < dt2 else -1
+        n_years = max_d.year - min_d.year
+
+        dt_adj = max_d + Tenor(
+            unit=UNIT.Y, n = n_years
+        )
+
+        dc_adj = day_count(dt1, dt_adj)
+
+        return sign * sum((
+            n_years,
+            dc_adj / (
+                366 if _is_leap_year(dt1) else 365
+            )
+        ))
+
+    elif count == count_enum.N_1_1:
+        assert False, dict(count=count, enum=count_enum)
+    else:
+        assert False, dict(count=count, enum=count_enum)
+
+@functools.lru_cache(maxsize=100)
+def _ndays_february(y):
+    return pycalendar.monthrange(y, 2)[1]
+
+@functools.lru_cache(maxsize=100)
+def _is_leap_year(y):
+    return _ndays_february(y) == 29
+
+def day_count(dt1, dt2):
+    """
+    
+    """
+    count_enum = conventions.COUNT
+    count = count_enum.current()
+
+    y1, m1, d1 = unpack_date(dt1)
+    y2, m2, d2 = unpack_date(dt2)
+
+    if (
+        count == count_enum.SIMPLE
+        or count in conventions.COUNT_ACTUAL
+    ):
+        return (dt2 - dt1).days
+
+    elif count in conventions.COUNT_360:
+
+        if count == count_enum.N_30_360_BOND:
+
+            d1 = min((d1, 30))
+            if d1 > 29:
+                d2 = min((d2, 30))
+
+        elif count == count_enum.N_30_360_US:
+
+            # first two conditions, only iF interest end of month?
+
+            d1_eo_feb = d1 == _ndays_february(y2)
+            d2_eo_feb = d2 == _ndays_february(y2)
+
+            if d1_eo_feb and d2_eo_feb:
+                d2 = 30
+            
+            if d1_eo_feb:
+                d1 = 30
+
+            if d2 > 30 and d1 > 29:
+                d2 = 30
+            
+            d1 = min((31, 30))
+
+        elif count == count_enum.N_30E_360:
+
+            d1 = min((d1, 30))
+            d2 = min((d2, 30))
+
+        elif count == count_enum.N_30E_360_ISDA:
+
+            d1 = min((d1, 30))
+            d2 = min((d2, 30))
+
+            if m1 == 2 and d1 == _ndays_february(y1):
+                d1 = 30
+
+            # if d2 is not maturity date?
+            if m2 == 2 and d2 == _ndays_february(y2):
+                d2 = 30
+
+        elif count == count_enum.N_30E_PLUS_360:
+
+            d1 = min((d1, 30))
+            if d2 == 31:
+                m2 += 1
+                d2 = 1
+        
+        else:
+            assert False, dict(count=count, enum=count_enum)
+
+        return sum((
+            360 * (y2 - y1),
+            30 * (m2 - m1),
+            d2 - d1
+        ))
+    
+    elif count == count_enum.N_1_1:
+        assert False
+    else:
+        assert False, dict(count=count, enum=count_enum)
+    
+def tenor_day_count(d1, t):
+    """
+
+    """
+    return day_count(d1, d1 + t)
+
+# ---------------------------------------------------------------
+
+def tenor_between(dt_l, dt_r, unit = UNIT.D):
     """
     >>> dt = datetime.date(2023, 1, 1)
     >>> Tenor.between(dt, dt + Tenor("D", 1))
@@ -591,23 +885,53 @@ def tenor_between(dt_l, dt_r, unit = "D"):
     """
     unit_validate(unit)
 
-    roll_enum = conventions.ROLL
-    roll = roll_enum.current()
+    iteration_enum = conventions.ITERATION
+    iteration = iteration_enum.current()
+    
+    if iteration == iteration_enum.WITHOUT_CALENDAR:
+        sign = 1 if dt_l <= dt_r else -1
+        itr = _date_iter(dt_l, d2=dt_r, step = sign)
 
-    count_enum = conventions.COUNT
-    count = count_enum.current()
+    elif iteration == iteration_enum.WITH_CALENDAR:
+        itr = calendar_iterator(starting=dt_l, ending=dt_r)
+        
+    else:
+        assert False, dict(iteration=iteration, enum=iteration_enum)
 
-    if count == count_enum.SIMPLE and roll == roll_enum.ACTUAL:
-        if unit == "D":
-            return Tenor(unit=unit, n=(dt_r - dt_l).days)
+    if unit == UNIT.D:
+        n = len(list(
+            d for d in itr if d is not None
+        ))
+        return Tenor(unit=unit, n=n * sign)
 
-    assert False, dict(
-        dt_l=dt_l,
-        dt_r=dt_r,
-        unit=unit,
-        roll=roll,
-        count=count,
-    )
+    round_enum == conventions.ROUND
+    _round = round_enum.current()
+
+    # TODO: faster to do this, or to iter Tenor(n=1) steps?
+
+    if unit == UNIT.W:
+        n = len(list(set(
+            d.isocalendar().week for d in itr if d is not None
+        )))
+    elif unit == UNIT.M:
+        n = len(list(set(
+            d.month for d in itr if d is not None
+        )))
+    elif unit == UNIT.Y:
+        n = len(list(set(
+            d.year for d in itr if d is not None
+        )))
+    else:
+        assert False, dict(unit=unit, enum=unit_enum)
+
+    if _round == round_enum.UP:
+        pass
+    elif _round == round_enum.DOWN:
+        n -= 1
+    else:
+        assert False, dict(round=_round, enum=round_enum)
+
+    return Tenor(unit=unit, n = n * sign)
 
 # ---------------------------------------------------------------
 
@@ -655,8 +979,6 @@ class Tenor(typing.NamedTuple):
 
     __rsub__ = tenor_rsub
     rsub = tenor_rsub
-
-    timedelta = tenor_timedelta
 
     between = staticmethod(tenor_between)
 

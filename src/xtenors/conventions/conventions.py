@@ -107,22 +107,64 @@ class _COUNT(typing.NamedTuple):
 
     SIMPLE: str = "SIMPLE"
 
+    ACTUAL_ACTUAL_ISDA: str = "ACTUAL_ACTUAL_ISDA"
+    ACTUAL_ACTUAL_ICMA: str = "ACTUAL_ACTUAL_ICMA"
+    ACTUAL_ACTUAL_AFB: str = "ACTUAL_ACTUAL_AFB"
+
+    ACTUAL_365_F: str = "ACTUAL_365_F"
+    ACTUAL_365_L: str = "ACTUAL_365_L"
+    ACTUAL_360: str = "ACTUAL_360"
+    ACTUAL_364: str = "ACTUAL_364"
+
+    N_30_360_BOND: str = "N_30_360_BOND"
+    N_30_360_US: str = "N_30_360_US"
+
+    N_30E_360: str = "N_30E_360"
+    N_30E_360_ISDA: str = "N_30E_360_ISDA"
+    N_30E_PLUS_360: str = "N_30E_PLUS_360"
+
+    N_1_1: str = "N_1_1"
+
     FIELD: str = "COUNT"
 
     current = get_convention
 
     # day count:
-    # 30_360_bond
-    # 30_e_360 (| _isda)
-    # 30_e_plus_360
-    # act_act_isda
-    # act_act_isma
-    # act_365f
-    # act_360
-    # act_365l
-    # simple
 
 COUNT = _COUNT()
+
+COUNT_360 = {
+    COUNT.N_30_360_BOND,
+    COUNT.N_30_360_US,
+    COUNT.N_30E_360,
+    COUNT.N_30E_360_ISDA,
+    COUNT.N_30E_PLUS_360,
+}
+
+COUNT_ACTUAL = {
+    COUNT.ACTUAL_ACTUAL_ISDA,
+    COUNT.ACTUAL_ACTUAL_ICMA,
+    COUNT.ACTUAL_ACTUAL_AFB,
+    COUNT.ACTUAL_365_F,
+    COUNT.ACTUAL_365_L,
+    COUNT.ACTUAL_360,
+    COUNT.ACTUAL_364,
+}
+
+# ---------------------------------------------------------------
+
+@xtuples.nTuple.enum
+class _OVERFLOW(typing.NamedTuple):
+
+    ERROR: str = "ERROR"
+    PREV: str = "PREV"
+    NEXT: str = "NEXT"
+
+    FIELD: str = "OVERFLOW"
+
+    current = get_convention
+
+OVERFLOW = _OVERFLOW()
 
 # ---------------------------------------------------------------
 
@@ -142,6 +184,34 @@ class _ROLL(typing.NamedTuple):
     current = get_convention
 
 ROLL = _ROLL()
+
+# ---------------------------------------------------------------
+
+@xtuples.nTuple.enum
+class _ITERATION(typing.NamedTuple):
+
+    WITH_CALENDAR: str = "WITH_CALENDAR"
+    WITHOUT_CALENDAR: str = "WITHOUT_CALENDAR"
+
+    FIELD: str = "ITERATION"
+
+    current = get_convention
+
+ITERATION = _ITERATION()
+
+# ---------------------------------------------------------------
+
+@xtuples.nTuple.enum
+class _ROUND(typing.NamedTuple):
+
+    UP: str = "UP"
+    DOWN: str = "DOWN"
+
+    FIELD: str = "ROUND"
+
+    current = get_convention
+
+ROUND = _ROUND()
 
 # ---------------------------------------------------------------
 
@@ -191,6 +261,15 @@ CONVENTIONS = dict(
     COUNT=StrConvention(
         default=COUNT.SIMPLE,
         # NOTE: simple is count all days
+    ),
+    ITERATION = StrConvention(
+        default=ITERATION.WITHOUT_CALENDAR,
+    ),
+    ROUND = StrConvention(
+        default=ROUND.UP,
+    ),
+    OVERFLOW = StrConvention(
+        default=OVERFLOW.PREV,
     ),
     ROLL=StrConvention(
         default=ROLL.ACTUAL,

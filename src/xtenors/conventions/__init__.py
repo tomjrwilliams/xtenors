@@ -8,8 +8,13 @@ from .conventions import (
     set_conventions,
     LIBRARY,
     COUNT,
+    COUNT_360,
+    COUNT_ACTUAL,
+    OVERFLOW,
     ROLL,
     CALENDAR,
+    ITERATION,
+    ROUND,
     FORMAT,
     CONVENTIONS,
     #
