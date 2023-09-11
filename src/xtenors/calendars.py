@@ -110,13 +110,11 @@ class Stateless(typing.NamedTuple):
                 f_accept = lambda current: not current.weekday() < 5
         elif isinstance(val, int):
             f_accept = lambda current: current.weekday() == val
+        elif isinstance(val, typing.Iterable):
+            val = frozenset(val)
+            f_accept = lambda current: current.weekday() in val
         else:
-            try:
-                iter(val)
-                val = frozenset(val)
-                f_accept = lambda current: current.weekday() in val
-            except:
-                assert False, val
+            assert False, val
         return cls(lambda _, step: f_accept)
 
 # ---------------------------------------------------------------
@@ -280,7 +278,7 @@ class Exclusion(typing.NamedTuple):
 def try_next(itr):
     try:
         return False, next(itr)
-    except StopIteration:
+    except StopIteration as e:
         return True, None
 
 def union(
@@ -290,11 +288,20 @@ def union(
     # lt = descending
 ):
     """
-    >>> itr0 = Stateless.is_weekday(0).iterate(year(2020, d=3), days(1))
-    >>> itr1 = Stateless.is_weekday(1).iterate(year(2020, d=3), days(1))
+    >>> cal0 = Stateless.is_weekday(0)
+    >>> cal1 = Stateless.is_weekday(1)
+    >>> cal2 = Stateless.is_weekday(2)
+    >>> itr0 = cal0.iterate(year(2020, d=3), days(1))
+    >>> itr1 = cal1.iterate(year(2020, d=3), days(1))
     >>> itr = union(xt.iTuple([itr0, itr1]), operator.gt)
     >>> xt.iTuple.range(4).zip(itr).mapstar(lambda i, d: d.weekday())
     iTuple(0, 1, 0, 1)
+    >>> itr0 = cal0.iterate(year(2020, d=3), days(1))
+    >>> itr1 = cal1.iterate(year(2020, d=3), days(1))
+    >>> itr2 = cal2.iterate(year(2020, d=3), days(1))
+    >>> itr = union(xt.iTuple([itr0, itr1, itr2]), operator.gt)
+    >>> xt.iTuple.range(4).zip(itr).mapstar(lambda i, d: d.weekday())
+    iTuple(0, 1, 2, 0)
     """
     assert itrs.len() > 1, itrs.len()
     vs = itrs.enumerate().mapstar(lambda i, itr: (i, try_next(itr)))
@@ -331,7 +338,7 @@ def union(
                     i=insert_at[0],
                     v=(itr_i, v,),
                 )
-        order = order.prepend((next_i, next_v))
+        order = order.prepend((next_i, next_v,))
     itr_i, v = order[0]
     while not is_done:
         yield v
@@ -353,12 +360,31 @@ def intersection(
     itrs,
     op,
     # gt = ascending order of result
-    # lt = descending
+    # lt = descending,
+    i_max = 10 ** 3
 ):
     """
-    >>> itr0 = Stateless.is_weekday([0, 1]).iterate(year(2020, d=3), days(1))
-    >>> itr1 = Stateless.is_weekday([1, 2]).iterate(year(2020, d=3), days(1))
+    >>> cal0 = Stateless.is_weekday([0, 1])
+    >>> cal1 = Stateless.is_weekday([1, 2])
+    >>> cal2 = Stateless.is_weekday([2, 3])
+    >>> itr0 = cal0.iterate(year(2020, d=3), days(1))
+    >>> itr1 = cal1.iterate(year(2020, d=3), days(1))
     >>> itr = intersection(xt.iTuple([itr0, itr1]), operator.gt)
+    >>> xt.iTuple.range(4).zip(itr).mapstar(lambda i, d: d.weekday())
+    iTuple(1, 1, 1, 1)
+    >>> itr0 = cal0.iterate(year(2020, d=3), days(1))
+    >>> itr1 = cal1.iterate(year(2020, d=3), days(1))
+    >>> itr2 = cal2.iterate(year(2020, d=3), days(1))
+    >>> itr = intersection(xt.iTuple([itr0, itr1, itr2]), operator.gt)
+    >>> xt.iTuple.range(4).zip(itr).mapstar(lambda i, d: d.weekday())
+    Traceback (most recent call last):
+     ...
+    AssertionError: assert 1002 < 1000
+    >>> cal2 = Stateless.is_weekday([1, 2, 3])
+    >>> itr0 = cal0.iterate(year(2020, d=3), days(1))
+    >>> itr1 = cal1.iterate(year(2020, d=3), days(1))
+    >>> itr2 = cal2.iterate(year(2020, d=3), days(1))
+    >>> itr = intersection(xt.iTuple([itr0, itr1, itr2]), operator.gt)
     >>> xt.iTuple.range(4).zip(itr).mapstar(lambda i, d: d.weekday())
     iTuple(1, 1, 1, 1)
     """
@@ -373,9 +399,11 @@ def intersection(
         .mapstar(lambda i, res: (i, res[1]))
     )
     order = vs.sortstar(lambda i, v: v)
+    acc = xt.iTuple()
+    it = 0
     while not done.len():
-        itr_i, v = order[0]
-        if order.allstar(lambda i, _v: _v == v):
+        if acc.len() == itrs.len() - 1:
+            v = acc[0][1]
             yield v
             vs = itrs.enumerate().mapstar(lambda i, itr: (i, try_next(itr)))
             done = (
@@ -387,27 +415,61 @@ def intersection(
                 .mapstar(lambda i, res: (i, res[1]))
             )
             order = vs.sortstar(lambda i, v: v)
+            acc = xt.iTuple()
+            it = 0
         else:
+            it += 1
+            itr_i, v = order[0]
             order = order[1:]
-            is_done, v = try_next(itrs[itr_i])
             next_i, next_v = order[0]
             order = order[1:]
-            while not is_done and not (v == next_v or op(v, next_v)):
-                is_done, v = try_next(itrs[itr_i])
-            if is_done:
-                done = done.append(itr_i)
-            else:
-                insert_at = order.first_where(
-                    lambda i, _v: op(_v, v),
-                    star=True,
+            if v == next_v:
+                acc = acc.append((itr_i, v,))
+                order = order.prepend((next_i, next_v,))
+                continue
+            # if any to the right are non equal
+            # have to step to the left up
+            elif len(acc):
+                acc = acc.append((itr_i, v))
+                vs = acc.mapstar(lambda i, v: (i, try_next(itrs[i])))
+                done = (
+                    vs.filterstar(lambda i, res: res[0])
+                    .mapstar(lambda i, res: i)
                 )
-                if insert_at is None:
-                    order = order.append((itr_i, v,))
+                vs = (
+                    vs.filterstar(lambda i, res: not res[0])
+                    .mapstar(lambda i, res: (i, res[1]))
+                )
+                order = (
+                    vs.extend(order)
+                    .append((next_i, next_v,))
+                ).sortstar(lambda i, v: v)
+                acc = xt.iTuple()
+                continue
+            else:
+                is_done = False
+                while not is_done and not (v == next_v or op(v, next_v)):
+                    is_done, v = try_next(itrs[itr_i])
+                if is_done:
+                    done = done.append(itr_i)
+                    continue
+                if v == next_v:
+                    order = order.prepend((itr_i, v,))
+                    order = order.prepend((next_i, next_v,))
                 else:
-                    order = order.insert(
-                        i=insert_at[0],
-                        v=(itr_i, v,),
+                    insert_at = order.first_where(
+                        lambda i, _v: op(_v, v),
+                        star=True,
                     )
-            order = order.prepend((next_i, next_v))
+                    if insert_at is None:
+                        order = order.append((itr_i, v,))
+                    else:
+                        order = order.insert(
+                            i=insert_at[0],
+                            v=(itr_i, v,),
+                        )
+                    order = order.prepend((next_i, next_v,))
+                acc = xt.iTuple()
+            assert it < i_max
 
 # ---------------------------------------------------------------

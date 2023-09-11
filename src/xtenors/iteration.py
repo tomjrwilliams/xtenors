@@ -18,6 +18,7 @@ def iterate(
     start: typing.Union[datetime.date, datetime.datetime],
     step: datetime.timedelta,
     f: typing.Optional[typing.Callable] = None,
+    i_max = 10 ** 3
     # NOTE: f should tuple: (done, accept)
 ):
     """
@@ -43,13 +44,16 @@ def iterate(
     >>> list(itr)
     []
     """
-    i = 0
     current = start
     if f is not None:
         accept, done = f(current)
+        it = 0
         while not accept and not done:
             current += step
             accept, done = f(current)
+            it += 1
+            assert it < i_max
+    prev = None
     while not done:
         given: typing.Union[
             datetime.datetime,
@@ -59,13 +63,12 @@ def iterate(
         ] = yield current
         if given is None:
             current += step
-            i += 1
         elif isinstance(
             given, (datetime.datetime, datetime.date)
         ):
-            current = given
+            current = given - step
         elif isinstance(given, datetime.timedelta):
-            current -= step
+            # current -= step
             step = given
         elif isinstance(given, typing.Callable):
             current -= step
@@ -74,10 +77,13 @@ def iterate(
             assert False, given
         if f is not None:
             accept, done = f(current)
+            it = 0
             while not accept and not done:
                 current += step
                 accept, done = f(current)
-
+                it += 1
+                assert it < i_max
+        prev = current
 # ---------------------------------------------------------------
 
 def between(
