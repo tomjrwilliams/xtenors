@@ -18,6 +18,9 @@ def iterate(
     start: typing.Union[datetime.date, datetime.datetime],
     step: datetime.timedelta,
     f: typing.Optional[typing.Callable] = None,
+    end: typing.Optional[
+        typing.Union[datetime.date, datetime.datetime]
+    ] = None,
 ):
     """
     >>> itr = iterate(year(2020), days(1))
@@ -74,6 +77,8 @@ def iterate(
             datetime.timedelta,
             typing.Callable,
         ] = yield accept, current
+        if end is not None:
+            done = end == current
         if given is None:
             current += step
             mask = False
@@ -97,6 +102,28 @@ def iterate(
             assert False, given
         mask = True
         accept = False
+
+# ---------------------------------------------------------------
+
+def direction(gen):
+    """
+    >>> itr = iterate(year(2020), days(1))
+    >>> direction(itr)
+    1
+    >>> next(itr)
+    (True, datetime.date(2020, 1, 1))
+    >>> itr = iterate(year(2020), days(-1))
+    >>> direction(itr)
+    -1
+    >>> next(itr)
+    (True, datetime.date(2020, 1, 1))
+    """
+    # NOTE: be careful, needs to be at least len(2) before done
+    _, v_r = next(gen)
+    _ = gen.send(-2)
+    _, v_l = next(gen)
+    return 1 if v_r > v_l else -1
+
 # ---------------------------------------------------------------
 
 def between(
