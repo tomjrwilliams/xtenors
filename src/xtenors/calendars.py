@@ -35,7 +35,7 @@ def extend_excludes(k: str, vals: typing.Iterable):
 
 # ---------------------------------------------------------------
 
-def stateless_iterator_function(
+def f_stateless_iterator(
     current,
     step,
     f_f_accept,
@@ -67,7 +67,7 @@ class Stateless(typing.NamedTuple):
     ):
         i = 0
         current = start
-        f = stateless_iterator_function(
+        f = f_stateless_iterator(
             current,
             step,
             self.f_f_accept,
@@ -105,10 +105,11 @@ class Stateless(typing.NamedTuple):
         iTuple(0, 1)
         """
         if isinstance(val, bool):
-            if val:
-                f_accept = lambda current: current.weekday() < 5
-            else:
-                f_accept = lambda current: not current.weekday() < 5
+            f_accept = (
+                lambda current: current.weekday() < 5
+                if val
+                else lambda current: not current.weekday() < 5
+            )
         elif isinstance(val, int):
             f_accept = lambda current: current.weekday() == val
         elif isinstance(val, typing.Iterable):
@@ -136,7 +137,7 @@ class Stateless(typing.NamedTuple):
 
 # ---------------------------------------------------------------
 
-def stateful_iterator_function(
+def f_stateful_iterator(
     current,
     step,
     state,
@@ -155,6 +156,12 @@ def stateful_iterator_function(
     return f
 
 # ---------------------------------------------------------------
+
+# TODO:
+
+# stateful, not incl / excl
+# so state replace not extend
+
 
 # NOTE: rather than assume if included, f_accept = true
 # pass a func, so can combine tests
@@ -188,7 +195,7 @@ class Inclusion(typing.NamedTuple):
                     self.f_extend(current, step, state, includes)
                 )
                 state = self.f_state(current, step, state, includes)
-                f = stateful_iterator_function(
+                f = f_stateful_iterator(
                     current,
                     step,
                     state,
@@ -238,7 +245,7 @@ class Exclusion(typing.NamedTuple):
                     self.f_extend(current, step, state, excludes)
                 )
                 state = self.f_state(current, step, state), excludes
-                f = stateful_iterator_function(
+                f = f_stateful_iterator(
                     current,
                     step,
                     state,
@@ -258,5 +265,5 @@ class Exclusion(typing.NamedTuple):
                 done = True
             
             i += 1
-   
+
 # ---------------------------------------------------------------

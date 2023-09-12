@@ -1,4 +1,11 @@
 
+# standard enums
+
+
+
+
+
+
 # import sys
 # import importlib.util
 

@@ -393,3 +393,18 @@ def intersection(itrs):
     )
 
 # ---------------------------------------------------------------
+
+# default to where y=true
+def steps_between():
+    return
+   
+# ---------------------------------------------------------------
+
+# various units between
+# with either a kwarg for if only whole units 
+
+# or to acc as fraction
+
+# or separate methods?
+
+# ---------------------------------------------------------------
