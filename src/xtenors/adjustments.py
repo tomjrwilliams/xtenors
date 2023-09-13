@@ -25,6 +25,8 @@ from . import calendars
 
 # TODO: check signs
 
+# TODO: check unmodified and m != m(valid) is error?
+
 # ---------------------------------------------------------------
 
 def adjust_date_forward(d, first_valid, iterator, flags = None):
