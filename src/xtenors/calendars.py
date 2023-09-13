@@ -21,7 +21,7 @@ from . import iteration
 class Calendar(typing.Protocol):
 
     @abc.abstractmethod
-    def valid(self: Calendar, current: DDT) -> bool:
+    def valid(self: Calendar) -> typing.Callable[[DDT], bool]:
         ...
 
     @abc.abstractmethod
@@ -41,11 +41,21 @@ class Weekday(typing.NamedTuple):
     val: typing.Union[
         bool,
         int,
-        xt.iTuple,
+        typing.Iterable[int],
     ]
 
-    @functools.lru_cache(maxsize=1)
-    def f(self):
+    def valid(self: Calendar) -> typing.Callable[[DDT], bool]:
+        """
+        >>> _, gen = Weekday(True).iterator(year(2020, d=3), days(1)).gen()
+        >>> xt.iTuple.from_where(gen, lambda y, v: y, n=2, star=True).mapstar(lambda y, v: v)
+        iTuple(datetime.date(2020, 1, 3), datetime.date(2020, 1, 6))
+        >>> _, gen = Weekday(1).iterator(year(2020, d=3), days(1)).gen()
+        >>> xt.iTuple.from_where(gen, lambda y, v: y, n=2, star=True).mapstar(lambda y, v: v.weekday())
+        iTuple(1, 1)
+        >>> _, gen = Weekday([0, 1]).iterator(year(2020, d=3), days(1)).gen()
+        >>> xt.iTuple.from_where(gen, lambda y, v: y, n=2, star=True).mapstar(lambda y, v: v.weekday())
+        iTuple(0, 1)
+        """
         val = self.val
         if isinstance(val, bool):
             f = (
@@ -55,29 +65,12 @@ class Weekday(typing.NamedTuple):
             )
         elif isinstance(val, int):
             f = lambda current: current.weekday() == val
-        elif isinstance(val, xt.iTuple):
+        elif isinstance(val, typing.Iterable):
             val = frozenset(val)
             f = lambda current: current.weekday() in val
         else:
             assert False, val
         return f
-
-    def valid(self: Calendar, current: DDT) -> bool:
-        """
-        >>> calendar = Weekday(True)
-        >>> _, gen = iteration.Iterator(year(2020, d=3), days(1)).gen()
-        >>> xt.iTuple.from_where(gen(), lambda y, v: y, n=2, star=True).mapstar(lambda y, v: v)
-        iTuple(datetime.date(2020, 1, 3), datetime.date(2020, 1, 6))
-        >>> calendar = Weekday(1)
-        >>> _, gen = iteration.Iterator(year(2020, d=3), days(1)).gen()
-        >>> xt.iTuple.from_where(gen(), lambda y, v: y, n=2, star=True).mapstar(lambda y, v: v.weekday())
-        iTuple(1, 1)
-        >>> calendar = Weekday([0, 1])
-        >>> _, gen = iteration.Iterator(year(2020, d=3), days(1)).gen()
-        >>> xt.iTuple.from_where(gen(), lambda y, v: y, n=2, star=True).mapstar(lambda y, v: v.weekday())
-        iTuple(0, 1)
-        """
-        return self.f()(current)
 
     def iterator(
         self, 
@@ -85,11 +78,13 @@ class Weekday(typing.NamedTuple):
         step: datetime.timedelta,
         **kwargs
     ):
-        if "accept" in kwargs:
-            f = kwargs.pop("accept")
-            accept = lambda ddt: self.valid(ddt) and f(ddt)
-        else:
-            accept = self.valid
+        f = kwargs.pop("accept", None)
+        valid = self.valid()
+        accept = (
+            valid
+            if f is None
+            else lambda ddt: valid(ddt) and f(ddt)
+        )
         return iteration.Iterator(
             start,
             step,
