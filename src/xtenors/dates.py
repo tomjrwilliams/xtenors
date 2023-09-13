@@ -11,6 +11,10 @@ import xtuples as xt
 
 # ---------------------------------------------------------------
 
+DDT = typing.Union[datetime.date, datetime.datetime]
+
+# ---------------------------------------------------------------
+
 def is_date_strict(v):
     if isinstance(v, datetime.datetime):
         return False

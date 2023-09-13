@@ -15,162 +15,225 @@ from .units import *
 
 # ---------------------------------------------------------------
 
-def iterate(
-    start: typing.Union[datetime.date, datetime.datetime],
-    step: datetime.timedelta,
-    f: typing.Optional[typing.Callable] = None,
-    end: typing.Optional[
-        typing.Union[datetime.date, datetime.datetime]
-    ] = None,
-):
-    """
-    >>> itr = iterate(year(2020), days(1))
-    >>> xt.iTuple.n_from(itr, 2).mapstar(lambda y, v: v)
-    iTuple(datetime.date(2020, 1, 1), datetime.date(2020, 1, 2))
-    >>> itr.send(year(2020))
-    (False, datetime.date(2019, 12, 31))
-    >>> xt.iTuple.n_from(itr, 2).mapstar(lambda y, v: v)
-    iTuple(datetime.date(2020, 1, 1), datetime.date(2020, 1, 2))
-    >>> itr.send(days(-1))
-    (False, datetime.date(2020, 1, 3))
-    >>> xt.iTuple.n_from(itr, 2).mapstar(lambda y, v: v)
-    iTuple(datetime.date(2020, 1, 2), datetime.date(2020, 1, 1))
-    >>> itr.send(1)
-    (False, datetime.date(2019, 12, 31))
-    >>> next(itr)
-    (True, datetime.date(2019, 12, 30))
-    >>> itr.send(2)
-    (False, datetime.date(2019, 12, 28))
-    >>> next(itr)
-    (True, datetime.date(2019, 12, 27))
-    >>> itr.send(-5)
-    (False, datetime.date(2020, 1, 1))
-    >>> itr.send(lambda d: d.year != 2020)
-    (False, datetime.date(2020, 1, 2))
-    >>> next(itr)
-    (False, datetime.date(2020, 1, 1))
-    >>> itr.send(lambda d: (True, True))
-    (False, datetime.date(2020, 1, 2))
-    >>> list(itr)
-    []
-    """
-    # NOTE: when sent a value, we step back one iter
-    # so next(gen) is where we were when sent the value
-    current = start
-    if f is None:
-        f = lambda dt: True
-    done = False
-    accept = True
-    mask = False
-    while not done:
-        if not mask:
-            f_current = f(current)
-            if isinstance(f_current, bool):
-                accept = f_current
-                done = False
-            else:
-                accept, done = f_current
-        if done:
-            continue
-        given: typing.Union[
-            datetime.datetime,
-            datetime.date,
-            datetime.timedelta,
-            typing.Callable,
-        ] = yield accept, current
-        if end is not None:
-            done = end == current
-        if given is None:
-            current += step
+
+@xt.nTuple.decorate()
+class Iterator(typing.NamedTuple):
+
+    start: DDT
+    step: datetime.timedelta
+    accept: typing.Optional[typing.Callable[[DDT], bool]] = None
+    done: typing.Optional[typing.Callable[[DDT], bool]] = None
+    end: typing.Optional[DDT] = None
+
+    f: typing.Optional[typing.Callable] = None
+
+    def direction(self):
+        """
+        >>> itr = Iterator(year(2020), days(1))
+        >>> itr.direction()
+        1
+        >>> itr = Iterator(year(2020), days(-1))
+        >>> itr.direction()
+        -1
+        """
+        return 1 if self.start + self.step > self.start else -1
+
+    def update(self, **kwargs):
+        # """
+        # >>> itr.send(lambda d: d.year != 2020)
+        # (False, datetime.date(2020, 1, 2))
+        # >>> next(itr)
+        # (False, datetime.date(2020, 1, 1))
+        # >>> itr.send(lambda d: (True, True))
+        # (False, datetime.date(2020, 1, 2))
+        # >>> list(itr)
+        # []
+        # """
+        self = self._replace(**kwargs)
+        return self.gen()
+
+    def gen(self):
+        """
+        >>> itr, gen = Iterator(year(2020), days(1)).gen()
+        >>> xt.iTuple.n_from(gen, 2).mapstar(lambda y, v: v)
+        iTuple(datetime.date(2020, 1, 1), datetime.date(2020, 1, 2))
+        >>> itr, gen = itr.update_from_current(gen, step=days(-1))
+        >>> xt.iTuple.n_from(gen, 2).mapstar(lambda y, v: v)
+        iTuple(datetime.date(2020, 1, 2), datetime.date(2020, 1, 1))
+        >>> gen.send(1)
+        (False, datetime.date(2019, 12, 31))
+        >>> next(gen)
+        (True, datetime.date(2019, 12, 30))
+        >>> gen.send(2)
+        (False, datetime.date(2019, 12, 28))
+        >>> next(gen)
+        (True, datetime.date(2019, 12, 27))
+        >>> gen.send(-5)
+        (False, datetime.date(2020, 1, 1))
+        """
+        def f():
+            current = self.start
+
+            f_accept = (
+                self.accept
+                if self.accept is not None
+                else lambda _: True
+            )
+            f_done = (
+                self.done
+                if self.done is not None
+                else lambda _: False
+            )
+            
             mask = False
-            continue
-        if given == 0:
-            current -= step
-        elif isinstance(given, int):
-            current += step * given 
-        elif isinstance(
-            given, (datetime.datetime, datetime.date)
-        ):
-            current = given
-            current -= step
-        elif isinstance(given, datetime.timedelta):
-            step = given
-            current -= step
-        elif isinstance(given, typing.Callable):
-            f = given
-            current -= step
-        else:
-            assert False, given
-        mask = True
-        accept = False
-
-# ---------------------------------------------------------------
-
-def direction(gen):
-    """
-    >>> itr = iterate(year(2020), days(1))
-    >>> direction(itr)
-    1
-    >>> next(itr)
-    (True, datetime.date(2020, 1, 1))
-    >>> itr = iterate(year(2020), days(-1))
-    >>> direction(itr)
-    -1
-    >>> next(itr)
-    (True, datetime.date(2020, 1, 1))
-    """
-    # NOTE: be careful, needs to be at least len(2) before done
-    _, v_r = next(gen)
-    _ = gen.send(-2)
-    _, v_l = next(gen)
-    return 1 if v_r > v_l else -1
-
-# ---------------------------------------------------------------
-
-def between(
-    start: typing.Union[datetime.date, datetime.datetime],
-    end: typing.Union[datetime.date, datetime.datetime],
-    step: datetime.timedelta,
-    f: typing.Optional[typing.Callable] = None,
-):
-    """
-    >>> xt.iTuple(between(year(2020), year(2020, d=3), days(1))).mapstar(lambda y, v: v)
-    iTuple(datetime.date(2020, 1, 1), datetime.date(2020, 1, 2), datetime.date(2020, 1, 3))
-    """
-
-    if start < end:
-        # assert timedelta sign is appropriate?
-        f_accept = lambda current: current <= end
-        f_done = lambda current: current > end
-    else:
-        # assert timedelta sign is appropriate?
-        f_accept = lambda current: current >= end
-        f_done = lambda current: current < end
-    
-    def f_wrapped(current):
-        if f is None:
-            accept = True
             done = False
-        else:
-            accept, done = f(current)
-        return (
-            accept and f_accept(current),
-            done or f_done(current),
+            accept = True
+
+            end = self.end
+            step = self.step
+
+            while not done:
+                done = f_done(current)
+                if done:
+                    continue
+                if not mask:
+                    accept = f_accept(current)
+                given: typing.Optional[int] = yield accept, current
+                if end is not None:
+                    done = end == current
+                if given is None:
+                    current += step
+                    mask = False
+                    continue
+                if given == 0:
+                    current -= step
+                else:
+                    current += step * given
+                mask = True
+                accept = False
+        return self, f()
+
+    def __call__(self):
+        _, gen = self.gen()
+        return gen
+
+    @classmethod
+    def current(cls, gen):
+        _, _ = next(gen)
+        _, _ = gen.send(-2)
+        _, v_current = next(gen)
+        return v_current
+
+    @classmethod
+    def from_current(
+        cls,
+        gen,  
+        step: datetime.timedelta,
+        accept: typing.Optional[typing.Callable[[DDT], bool]] = None,
+        done: typing.Optional[typing.Callable[[DDT], bool]] = None,
+        end: typing.Optional[DDT] = None,
+    ):
+        current = cls.current(gen)
+        return cls(
+            current,
+            step,
+            accept=accept,
+            done=done,
+            end=end,
         )
 
-    return iterate(start, step, f=f_wrapped)
+    def update_from_current(
+        self,
+        gen,  
+        **kwargs
+    ):
+        current = self.current(gen)
+        return self.update(start=current, **kwargs)
+
+    @classmethod
+    def to_current(
+        cls,
+        gen,  
+        start: DDT,
+        step: datetime.timedelta,
+        accept: typing.Optional[typing.Callable[[DDT], bool]] = None,
+        done: typing.Optional[typing.Callable[[DDT], bool]] = None,
+    ):
+        current = cls.current(gen)
+        return cls(
+            start,
+            step,
+            accept=accept,
+            done=done,
+            end=current,
+        )
+
+    def update_to_current(
+        self,
+        gen,  
+        **kwargs
+    ):
+        current = self.current(gen)
+        return self.update(end=current, **kwargs)
+
+    def update_accept(self, and_f = None, or_f = None, f = None):
+        return
+
+    def update_done(self, and_f = None, or_f = None, f = None):
+        return 
 
 # ---------------------------------------------------------------
 
-def try_next(itr):
+def steps_where(
+    itr: Iterator,
+    where: typing.Optional[typing.Callable] = None,
+) -> int:
+    itr, gen = itr.gen()
+    res = xt.iTuple.from_where(gen())
+    return res if where is None else where(res)
+
+def steps_until(
+    itr: Iterator,
+    where: typing.Optional[typing.Callable] = None,
+) -> int:
+    itr, gen = itr.gen()
+    res = xt.iTuple.from_while(gen(), value = False)
+    return res if where is None else where(res)
+    
+def steps_while(
+    itr: Iterator,
+    where: typing.Optional[typing.Callable] = None,
+) -> int:
+    itr, gen = itr.gen()
+    res = xt.iTuple.from_while(gen(), value = True)
+    return res if where is None else where(res)
+    
+# ---------------------------------------------------------------
+
+n_steps_where = functools.partial(
+    steps_where, 
+    where=lambda it: it.len() - 1
+)
+n_steps_until = functools.partial(
+    steps_until, 
+    where=lambda it: it.len()
+)
+n_steps_while = functools.partial(
+    steps_while, 
+    where=lambda it: it.len() - 1
+)
+
+# ---------------------------------------------------------------
+
+def try_next(gen):
     try:
-        y, v = next(itr)
+        y, v = next(gen)
         return False, y, v
     except StopIteration as e:
         return True, None, None
 
-def zip_next(itrs):
-    return itrs.map(try_next).zip().map(xt.iTuple)
+def zip_next(gens):
+    return gens.map(try_next).zip().map(xt.iTuple)
     
 # ---------------------------------------------------------------
 
@@ -181,14 +244,16 @@ def joint(
 ):
     assert itrs.len() > 1, itrs.len()
 
-    dirs = itrs.map(direction)
+    dirs = itrs.map(lambda itr: itr.direction())
     assert dirs.all(lambda d: d == dirs[0]), dirs
 
     op = operator.gt if dirs[0] == 1 else operator.lt
 
     i_range = xt.iTuple.range(itrs.len())
+
+    _, gens = itrs.map(lambda itr: itr.gen()).zip().map(xt.iTuple)
     
-    v_done, v_accept, vs = zip_next(itrs)
+    v_done, v_accept, vs = zip_next(gens)
     order = i_range.sort(lambda i: (not v_done[i], vs[i]))
 
     acc_i = xt.iTuple()
@@ -209,7 +274,7 @@ def joint(
                 acc_vs.append(vs[order[-1]]),
             ), acc_vs[-1]
             
-            v_done, v_accept, vs = zip_next(itrs)
+            v_done, v_accept, vs = zip_next(gens)
             order = i_range.sort(lambda i: (not v_done[i], vs[i]))
             
             acc_accept = acc_accept.clear()
@@ -262,14 +327,14 @@ def joint(
             inds = acc_i.append(i_min).append(i_next).extend(order)
             inds_order = inds.argsort()
 
-            itrs_order = inds[:offset].map(lambda i: itrs[i])
+            gens_order = inds[:offset].map(lambda i: gens[i])
 
             order_ = order.prepend(i_next)
             tail_done = order_.map(lambda i: v_done[i])
             tail_accept = order_.map(lambda i: v_accept[i])
             tail_vs = order_.map(lambda i: vs[i])
 
-            _v_done, _v_accept, _vs = zip_next(itrs_order)
+            _v_done, _v_accept, _vs = zip_next(gens_order)
 
             order_v_done = _v_done + tail_done
             order_v_accept = _v_accept + tail_accept
@@ -299,7 +364,7 @@ def joint(
                 acc_accept.append(min_accept),
                 acc_vs.append(v_min),
             ), v_min
-            min_done, min_accept, v_min = try_next(itrs[i_min])
+            min_done, min_accept, v_min = try_next(gens[i_min])
 
         if min_done:
             acc_done = acc_done.append(i_min)
@@ -328,21 +393,20 @@ def joint(
 def union(itrs):
     """
     >>> from .calendars import *
-    >>> cal0 = Stateless.is_weekday(0)
-    >>> cal1 = Stateless.is_weekday(1)
-    >>> cal2 = Stateless.is_weekday(2)
-    >>> itr0 = cal0.iterate(year(2020, d=3), days(1))
-    >>> itr1 = cal1.iterate(year(2020, d=3), days(1))
+    >>> cal0 = Weekday(0)
+    >>> cal1 = Weekday(1)
+    >>> cal2 = Weekday(2)
+    >>> itr0 = cal0.iterator(year(2020, d=3), days(1))
+    >>> itr1 = cal1.iterator(year(2020, d=3), days(1))
     >>> itr = union(xt.iTuple([itr0, itr1]))
     >>> xt.iTuple.from_where(itr, lambda y, v: y, n=4, star=True).mapstar(lambda y, v: v.weekday())
     iTuple(0, 1, 0, 1)
-    >>> _ = itr0.send(year(2020, d=3))
-    >>> itr2 = cal2.iterate(year(2020, d=3), days(1))
+    >>> itr2 = cal2.iterator(year(2020, d=3), days(1))
     >>> itr = union(xt.iTuple([itr0, itr1, itr2]))
     >>> xt.iTuple.from_where(itr, lambda y, v: y, n=8, star=True).mapstar(lambda y, v: v.weekday())
-    iTuple(0, 2, 0, 2, 0, 1, 2, 0)
-    >>> itr0 = cal0.iterate(year(2020, d=3), days(1), end = year(2020, d=5))
-    >>> itr1 = cal1.iterate(year(2020, d=3), days(1))
+    iTuple(0, 1, 2, 0, 1, 2, 0, 1)
+    >>> itr0 = cal0.iterator(year(2020, d=3), days(1), end = year(2020, d=5))
+    >>> itr1 = cal1.iterator(year(2020, d=3), days(1))
     >>> itr = union(xt.iTuple([itr0, itr1]))
     >>> xt.iTuple.from_where(itr, lambda y, v: y, n=4, star=True).mapstar(lambda y, v: v.weekday())
     iTuple(1, 1, 1, 1)
@@ -358,27 +422,25 @@ def union(itrs):
 def intersection(itrs):
     """
     >>> from .calendars import *
-    >>> cal0 = Stateless.is_weekday([0, 1])
-    >>> cal1 = Stateless.is_weekday([1, 2])
-    >>> itr0 = cal0.iterate(year(2020, d=3), days(1))
-    >>> itr1 = cal1.iterate(year(2020, d=3), days(1))
+    >>> cal0 = Weekday(xt.iTuple([0, 1]))
+    >>> cal1 = Weekday(xt.iTuple([1, 2]))
+    >>> itr0 = cal0.iterator(year(2020, d=3), days(1))
+    >>> itr1 = cal1.iterator(year(2020, d=3), days(1))
     >>> itr = intersection(xt.iTuple([itr0, itr1]))
     >>> xt.iTuple.from_where(itr, lambda y, v: y, n=4, star=True).mapstar(lambda y, v: v.weekday())
     iTuple(1, 1, 1, 1)
-    >>> cal2 = Stateless.is_weekday([1, 2, 3])
-    >>> _ = itr1.send(year(2020, d=3))
-    >>> itr2 = cal2.iterate(year(2020, d=3), days(1))
+    >>> cal2 = Weekday(xt.iTuple([1, 2, 3]))
+    >>> itr2 = cal2.iterator(year(2020, d=3), days(1))
     >>> itr = intersection(xt.iTuple([itr0, itr1, itr2]))
     >>> xt.iTuple.from_where(itr, lambda y, v: y, n=4, star=True).mapstar(lambda y, v: v.weekday())
     iTuple(1, 1, 1, 1)
-    >>> _ = itr0.send(year(2020, d=3))
-    >>> cal2 = Stateless.is_weekday([2, 3])
-    >>> itr2 = cal2.iterate(year(2020, d=3), days(1))
+    >>> cal2 = Weekday(xt.iTuple([2, 3]))
+    >>> itr2 = cal2.iterator(year(2020, d=3), days(1))
     >>> itr = intersection(xt.iTuple([itr0, itr1, itr2]))
     >>> xt.iTuple.n_from(itr, 120).any(lambda y, v: y, star = True)
     False
-    >>> itr0 = cal0.iterate(year(2020, d=3), days(1))
-    >>> itr1 = cal1.iterate(year(2020, d=3), days(1), end = year(2020, d=5))
+    >>> itr0 = cal0.iterator(year(2020, d=3), days(1))
+    >>> itr1 = cal1.iterator(year(2020, d=3), days(1), end = year(2020, d=5))
     >>> itr = intersection(xt.iTuple([itr0, itr1]))
     >>> xt.iTuple.n_from(itr, 120).any(lambda y, v: y, star = True)
     False
@@ -392,12 +454,6 @@ def intersection(itrs):
         )
     )
 
-# ---------------------------------------------------------------
-
-# default to where y=true
-def steps_between():
-    return
-   
 # ---------------------------------------------------------------
 
 # various units between
