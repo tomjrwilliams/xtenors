@@ -182,46 +182,38 @@ class Iterator(typing.NamedTuple):
     def update_done(self, and_f = None, or_f = None, f = None):
         return 
 
-# ---------------------------------------------------------------
+    def steps_where(
+        self,
+        where: typing.Optional[typing.Callable] = None,
+    ) -> int:
+        _, gen = self.gen()
+        res = xt.iTuple.from_where(gen)
+        return res if where is None else where(res)
 
-def steps_where(
-    itr: Iterator,
-    where: typing.Optional[typing.Callable] = None,
-) -> int:
-    itr, gen = itr.gen()
-    res = xt.iTuple.from_where(gen())
-    return res if where is None else where(res)
+    def n_steps_where(self):
+        return self.steps_where(where=lambda it: it.len() - 1)
 
-def steps_until(
-    itr: Iterator,
-    where: typing.Optional[typing.Callable] = None,
-) -> int:
-    itr, gen = itr.gen()
-    res = xt.iTuple.from_while(gen(), value = False)
-    return res if where is None else where(res)
-    
-def steps_while(
-    itr: Iterator,
-    where: typing.Optional[typing.Callable] = None,
-) -> int:
-    itr, gen = itr.gen()
-    res = xt.iTuple.from_while(gen(), value = True)
-    return res if where is None else where(res)
-    
-# ---------------------------------------------------------------
+    def steps_until(
+        self,
+        where: typing.Optional[typing.Callable] = None,
+    ) -> int:
+        _, gen = self.gen()
+        res = xt.iTuple.from_while(gen, value = False)
+        return res if where is None else where(res)
 
-n_steps_where = functools.partial(
-    steps_where, 
-    where=lambda it: it.len() - 1
-)
-n_steps_until = functools.partial(
-    steps_until, 
-    where=lambda it: it.len()
-)
-n_steps_while = functools.partial(
-    steps_while, 
-    where=lambda it: it.len() - 1
-)
+    def n_steps_until(self):
+        return self.steps_until(where=lambda it: it.len())
+        
+    def steps_while(
+        self,
+        where: typing.Optional[typing.Callable] = None,
+    ) -> int:
+        _, gen = self.gen()
+        res = xt.iTuple.from_while(gen, value = True)
+        return res if where is None else where(res)
+
+    def n_steps_while(self):
+        return self.steps_while(where=lambda it: it.len() - 1)
 
 # ---------------------------------------------------------------
 
