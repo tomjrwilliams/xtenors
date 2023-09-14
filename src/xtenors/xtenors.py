@@ -26,6 +26,9 @@ from . import adjustments
 
 @xt.nTuple.decorate()
 class Tenor(typing.NamedTuple):
+
+    # deliberately no __add__
+    # as what about iterator - force one to be explicit
     
     Y: typing.Optional[int] = 0
     M: typing.Optional[int] = 0
@@ -36,17 +39,53 @@ class Tenor(typing.NamedTuple):
 
     # adjust
 
-    def add(self, ddt: DDT, iterator = None, adjust = False):
-        return
-
-    # deliberately no __add__
-    # as what about iterator - force one to be explicit
+    def add(
+        self: Tenor,
+        ddt: typing.Union[DDT, Tenor],
+        iterator: typing.Optional[iteration.Iterator] = None,
+        adjust: bool = False,
+        flags=None,
+    ):
+        return add(
+            ddt,
+            self,
+            iterator=iterator,
+            adjust=adjust,
+            flags=flags,
+        )
 
 # ---------------------------------------------------------------
 
 # add tenor and tenor?
 
-def add(ddt: DDT, tenor: Tenor, iterator=None, adjust=False):
-    return tenor.add(ddt, iterator=iterator, adjust=adjust)
+def add(
+    left: typing.Union[DDT, Tenor],
+    right: Tenor,
+    iterator: typing.Optional[iteration.Iterator ]= None,
+    adjust: bool = False,
+    flags=None,
+):
+    if not isinstance(left, Tenor):
+        ddt = left
+        tenor = right
+        res = arithmetic.add(
+            ddt,
+            years=tenor.Y,
+            months=tenor.M,
+            weeks=tenor.W,
+            days=tenor.D,
+            iterator=iterator,
+            flags=flags,
+        )
+        return res if not adjust else adjustments.adjust(
+            res, flags=flags
+        )
+    return Tenor(
+        Y=left.Y+right.Y,
+        M=left.M+right.M,
+        W=left.W+right.W,
+        D=left.D+right.D,
+        #
+    )
 
 # ---------------------------------------------------------------

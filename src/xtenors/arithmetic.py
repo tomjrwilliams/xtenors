@@ -20,61 +20,39 @@ from . import conventions
 from . import iteration
 from . import calendars
 
-# ---------------------------------------------------------------
-
-def unpack(ddt):
-    if is_date_strict(ddt):
-        d = ddt
-        return d.year, d.month, d.day
-    dt = ddt
-    return (
-        dt.year,
-        dt.month,
-        dt.day,
-        dt.hour,
-        dt.minute,
-        dt.second,
-        dt.microsecond,
-    )
-    
-def unpack_date(ddt):
-    return ddt.year, ddt.month, ddt.day
-
-def unpack_time(ddt):
-    assert not is_date_strict(ddt), ddt
-    dt = ddt
-    return (
-        dt.hour,
-        dt.minute,
-        dt.second,
-        dt.microsecond,
-        #
-    )
 
 # ---------------------------------------------------------------
 
-def overflow_date(y, m, d):
-    overflow = conventions.get(conventions.Overflow)
+def overflow_date(y, m, d, flags = None):
+
+    if flags is None:
+        flags = conventions
+
+    overflow = flags.get(conventions.Overflow)
+
     if overflow is None or overflow is conventions.Overflow.ERROR:
         return datetime.date(y, m, d)
+
     elif overflow is conventions.Overflow.NEXT:
         m += 1
         ys, m = divmod(m - 1, 12)
         m += 1
         y += ys
         return datetime.date(y, m, 1)
+
     elif overflow is conventions.Overflow.PREV:
         d_max = calendar.monthrange(y, m)[1]
         return datetime.date(y, m, d_max)
+
     assert False, overflow
 
-def pack_date(y, m, d):
+def pack_date(y, m, d, flags = None):
     try:
         return datetime.date(y, m, d)
     except ValueError as e:
         if not "day is out of range for month" in str(e):
             raise e
-        return overflow_date(y, m, d)
+        return overflow_date(y, m, d, flags = flags)
 
 # ---------------------------------------------------------------
 
@@ -90,6 +68,7 @@ def add(
     milliseconds=0,
     microseconds=0,
     iterator: typing.Optional[iteration.Iterator] = None,
+    flags=None,
 ):
     """
     >>> ddt = datetime.date(2020, 1, 31)
@@ -151,10 +130,10 @@ def add(
     y += years
 
     if is_date_strict(ddt):
-        return pack_date(y, m, d)
+        return pack_date(y, m, d, flags = flags)
 
     return datetime.datetime(
-        *unpack_date(pack_date(y, m, d)),
+        *unpack_date(pack_date(y, m, d, flags = flags)),
         *unpack_time(ddt),
     )
 

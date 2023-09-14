@@ -79,7 +79,7 @@ def adjust_date_backward(d, first_valid, iterator, flags = None):
 
 # ---------------------------------------------------------------
 
-def adjust_date(
+def adjust(
     ddt,
     iterator,
     flags = None,

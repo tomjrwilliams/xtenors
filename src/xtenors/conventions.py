@@ -16,7 +16,6 @@ import xtuples as xt
 from .dates import *
 from .units import *
 
-
 # ---------------------------------------------------------------
 
 manager = xt.Flags()
@@ -68,6 +67,38 @@ class Modified(enum.Enum):
 
 class Format(enum.Enum):
     ISO = 0
+    
+# ---------------------------------------------------------------
+
+
+DAY_COUNTS = xt.iTuple([
+    "SIMPLE",
+    "N_ACTUAL",
+    "N_30_360_BOND",
+    "N_30_360_US",
+    "N_30E_360",
+    "N_30E_360_ISDA",
+    "N_30E_PLUS_360",
+    "N_1_1",
+])
+DAY_COUNT = enum.Enum({
+    s: i for i, s in DAY_COUNTS.enumerate()
+})
+
+DAY_COUNT_FACTORS = xt.iTuple([
+    "N_360",
+    "ACTUAL_365_F",
+    "ACTUAL_360",
+    "ACTUAL_364",
+    "ACTUAL_ACTUAL_ICMA",
+    "ACTUAL_365_L",
+    "ACTUAL_ACTUAL_ISDA",
+    "ACTUAL_ACTUAL_AFB",
+    "N_1_1",
+])
+DAY_COUNT_FACTOR = enum.Enum({
+    s: i for i, s in DAY_COUNT_FACTORS.enumerate()
+})
 
 # ---------------------------------------------------------------
 
