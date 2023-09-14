@@ -100,7 +100,8 @@ class Manager(typing.Protocol):
     def in_scope(
         self: Manager, 
         calendar: Stateful,
-        state: typing.Any
+        state: typing.Any,
+        current: DDT,
     ) -> bool:
         ...
 
@@ -113,6 +114,13 @@ class Manager(typing.Protocol):
     ) -> bool:
         ...
 
+    @abc.abstractmethod
+    def valid(
+        self: Manager,
+        calendar: Stateful,
+    ) -> typing.Callable[[DDT], bool]:
+        ...
+
 # ---------------------------------------------------------------
 
 @xt.nTuple.decorate()
@@ -120,30 +128,30 @@ class Stateful(typing.NamedTuple):
 
     manager: Manager
 
-    def gen(self):
-        def f(state = None):
-            itr, gen = self.itr.gen()
-            i = 0
-            done = False
-            current = None
-            while not done:
-                if i == 0:
-                    state = self.manager.update(
-                        self, state, current,
-                    )
-                elif not self.manager.in_scope(self, state):
-                    state = self.manager.update(
-                        self, state, current,
-                    )
-                try:
-                    current = next(gen)
-                    given: typing.Optional[int] = yield current
-                    if given is not None:
-                        yield gen.send(given)
-                except StopIteration:
-                    done = True
-                i += 1
-        return self, f
+    def valid(
+        self: Stateful,
+    ) -> typing.Callable[[DDT], bool]:
+        return self.manager.valid(self)
+
+    def iterator(
+        self, 
+        start: DDT,
+        step: datetime.timedelta,
+        **kwargs
+    ):
+        f = kwargs.pop("accept", None)
+        valid = self.valid()
+        accept = (
+            valid
+            if f is None
+            else lambda ddt: valid(ddt) and f(ddt)
+        )
+        return iteration.Iterator(
+            start,
+            step,
+            **kwargs, 
+            accept=accept
+        )
 
 # ---------------------------------------------------------------
 
@@ -166,21 +174,300 @@ class Stateful(typing.NamedTuple):
 global INCLUDES
 global EXCLUDES
 
-INCLUDES: dict[str, typing.FrozenSet] = {}
-EXCLUDES: dict[str, typing.FrozenSet] = {}
+INCLUDES: dict[typing.Type, dict[str, typing.FrozenSet]] = {}
+EXCLUDES: dict[typing.Type, dict[str, typing.FrozenSet]] = {}
 
 # ---------------------------------------------------------------
 
-def extend_includes(k: str, vals: typing.Iterable):
-    INCLUDES[k] = INCLUDES[k].union(vals)
+def extend_includes(t, k: str, vals: typing.Iterable):
+    if t not in INCLUDES:
+        INCLUDES[t] = {k: frozenset(vals)}
+    elif k not in INCLUDES[t]:
+        INCLUDES[t][k] = frozenset(vals)
+    else:
+        INCLUDES[t][k] = INCLUDES[t][k].union(vals)
     return INCLUDES[k]
 
-def extend_excludes(k: str, vals: typing.Iterable):
-    EXCLUDES[k] = EXCLUDES[k].union(vals)
+def extend_excludes(t, k: str, vals: typing.Iterable):
+    if t not in EXCLUDES:
+        EXCLUDES[t] = {k: frozenset(vals)}
+    elif k not in EXCLUDES[t]:
+        EXCLUDES[t][k] = frozenset(vals)
+    else:
+        EXCLUDES[t][k] = EXCLUDES[t][k].union(vals)
     return EXCLUDES[k]
 
 # ---------------------------------------------------------------
 
-# package specific implementations, where above is appropriate
+# package specific implementations
+
+# ---------------------------------------------------------------
+
+def date_exclusion_valid(
+    self: Manager,
+    calendar: Stateful,
+) -> typing.Callable[[DDT], bool]:
+    t = type(self)
+    state = None
+    excl = EXCLUDES[t][self.k]
+    def f(current: DDT) -> bool:
+        nonlocal state
+        nonlocal excl
+        if not self.in_scope(calendar, state, current):
+            state = self.update(calendar, state, current)
+            excl = EXCLUDES[t][self.k]
+        if isinstance(current, datetime.datetime):
+            return current.date() not in excl
+        return current not in excl
+    return f
+
+def date_inclusion_valid(
+    self: Manager,
+    calendar: Stateful,
+) -> typing.Callable[[DDT], bool]:
+    t = type(self)
+    state = None
+    excl = INCLUDES[t][self.k]
+    def f(current: DDT) -> bool:
+        nonlocal state
+        nonlocal excl
+        if not self.in_scope(calendar, state, current):
+            state = self.update(calendar, state, current)
+            excl = INCLUDES[t][self.k]
+        if isinstance(current, datetime.datetime):
+            return current.date() not in excl
+        return current not in excl
+    return f
+
+# ---------------------------------------------------------------
+
+def date_exclusion_in_scope(
+    self: Manager, 
+    calendar: Stateful,
+    state: typing.Optional[tuple[DDT, DDT]],
+    current: DDT,
+) -> bool:
+    if state is None:
+        return False
+    return current >= state[0] and current <= state[1]
+
+date_inclusion_in_scope = date_exclusion_in_scope
+
+# ---------------------------------------------------------------
+
+def date_exclusion_update(
+    self: Manager, 
+    calendar: Stateful,
+    state: typing.Optional[tuple[DDT, DDT]],
+    current: DDT,
+    f_excludes,
+    f_extend=extend_excludes,
+) -> bool:
+
+    if isinstance(current, datetime.datetime):
+        current = current.date()
+
+    if state is None:
+        start = current - self.window
+        end = current + self.window
+        state = (start, end,)
+
+    elif current < state[0]:
+        start = current - self.window
+        end = state[0]
+        state = (start, state[1],)
+
+    elif current > state[1]:
+        start = state[1]
+        end = current + self.window
+        state = (state[0], end,)
+
+    else:
+        return state
+
+    f_extend(
+        type(self),
+        self.k, 
+        f_excludes(
+            self.k,
+            start,
+            end
+        )
+    )
+    return state
+
+date_inclusion_update = functools.partial(
+    date_exclusion_update, f_extend=extend_includes
+)
+
+# ---------------------------------------------------------------
+
+import pandas_market_calendars
+
+@xt.nTuple.decorate()
+class Manager_Pandas_Market_Calendar(typing.NamedTuple):
+
+    k: str
+    window: datetime.timedelta
+
+    @classmethod
+    def f_excludes(cls, k, start, end):
+        cal = pandas_market_calendars.get_calendar(k)
+        valid = frozenset([
+            d.to_pydatetime().date() for d in cal.valid_days(
+                start_date=start,
+                end_date=end,
+            )
+        ])
+        _, gen = iteration.Iterator(
+            start,
+            days(1),
+            end=end,
+            accept=lambda d: d not in valid,
+        ).gen()
+        return xt.iTuple(gen)
+
+    def valid(
+        self: Manager,
+        calendar: Stateful,
+    ) -> typing.Callable[[DDT], bool]:
+        return date_exclusion_valid(
+            self, calendar
+        )
+
+    def in_scope(
+        self: Manager, 
+        calendar: Stateful,
+        state: typing.Optional[tuple[DDT, DDT]],
+        current: DDT,
+    ) -> bool:
+        return date_exclusion_in_scope(
+            self,
+            calendar,
+            state,
+            current,
+        )
+
+    def update(
+        self: Manager, 
+        calendar: Stateful,
+        state: typing.Optional[tuple[DDT, DDT]],
+        current: DDT,
+    ) -> bool:
+        return date_exclusion_update(
+            self,
+            calendar,
+            state,
+            current,
+            self.f_excludes,
+        )
+
+# ---------------------------------------------------------------
+
+import holidays
+
+@xt.nTuple.decorate()
+class Manager_Holidays_Country(typing.NamedTuple):
+
+    k: str
+    window: datetime.timedelta
+
+    @classmethod
+    def f_excludes(cls, k, start, end):
+        hols = holidays.country_holidays(k)
+        _, gen = iteration.Iterator(
+            start,
+            days(1),
+            end=end,
+            accept=lambda d: d in hols,
+        ).gen()
+        return xt.iTuple(gen)
+
+    def valid(
+        self: Manager,
+        calendar: Stateful,
+    ) -> typing.Callable[[DDT], bool]:
+        return date_exclusion_valid(
+            self, calendar
+        )
+
+    def in_scope(
+        self: Manager, 
+        calendar: Stateful,
+        state: typing.Optional[tuple[DDT, DDT]],
+        current: DDT,
+    ) -> bool:
+        return date_exclusion_in_scope(
+            self,
+            calendar,
+            state,
+            current,
+        )
+
+    def update(
+        self: Manager, 
+        calendar: Stateful,
+        state: typing.Optional[tuple[DDT, DDT]],
+        current: DDT,
+    ) -> bool:
+        return date_exclusion_update(
+            self,
+            calendar,
+            state,
+            current,
+            self.f_excludes,
+        )
+
+@xt.nTuple.decorate()
+class Manager_Holidays_Financial(typing.NamedTuple):
+
+    k: str
+    window: datetime.timedelta
+
+    @classmethod
+    def f_excludes(cls, k, start, end):
+        hols = holidays.financial_holidays(k)
+        _, gen = iteration.Iterator(
+            start,
+            days(1),
+            end=end,
+            accept=lambda d: d in hols,
+        ).gen()
+        return xt.iTuple(gen)
+
+    def valid(
+        self: Manager,
+        calendar: Stateful,
+    ) -> typing.Callable[[DDT], bool]:
+        return date_exclusion_valid(
+            self, calendar
+        )
+
+    def in_scope(
+        self: Manager, 
+        calendar: Stateful,
+        state: typing.Optional[tuple[DDT, DDT]],
+        current: DDT,
+    ) -> bool:
+        return date_exclusion_in_scope(
+            self,
+            calendar,
+            state,
+            current,
+        )
+
+    def update(
+        self: Manager, 
+        calendar: Stateful,
+        state: typing.Optional[tuple[DDT, DDT]],
+        current: DDT,
+    ) -> bool:
+        return date_exclusion_update(
+            self,
+            calendar,
+            state,
+            current,
+            self.f_excludes,
+        )
 
 # ---------------------------------------------------------------
