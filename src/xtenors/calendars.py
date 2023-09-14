@@ -155,23 +155,27 @@ class Stateful(typing.NamedTuple):
 
     @classmethod
     def pandas_market_calendar(
-        cls, k, window
+        cls, k, window, closed = False
     ):
-        return cls(Manager_Pandas_Market_Calendar(k, window))
+        return cls(Manager_Pandas_Market_Calendar(
+            k, window, closed=closed
+        ))
 
     @classmethod
     def holidays_country(
-        cls, k, window, subdiv = None
+        cls, k, window, subdiv = None, exclude = True
     ):
         return cls(Manager_Holidays_Country(
-            k, window, subdiv = subdiv
+            k, window, subdiv = subdiv, exclude=exclude
         ))
 
     @classmethod
     def holidays_financial(
-        cls, k, window
+        cls, k, window, exclude = True
     ):
-        return cls(Manager_Holidays_Financial(k, window))
+        return cls(Manager_Holidays_Financial(
+            k, window, exclude=exclude
+        ))
 
 # ---------------------------------------------------------------
 
@@ -226,6 +230,7 @@ def extend_excludes(t, k: str, vals: typing.Iterable):
 def date_exclusion_valid(
     self: Manager,
     calendar: Stateful,
+    val: bool
 ) -> typing.Callable[[DDT], bool]:
     t = type(self)
     state = None
@@ -237,13 +242,16 @@ def date_exclusion_valid(
             state = self.update(calendar, state, current)
             excl = EXCLUDES[t][self.k]
         if isinstance(current, datetime.datetime):
-            return current.date() not in excl
-        return current not in excl
+            res = current.date() not in excl
+        else:
+            res = current not in excl
+        return res if val else not res
     return f
 
 def date_inclusion_valid(
     self: Manager,
     calendar: Stateful,
+    val: bool
 ) -> typing.Callable[[DDT], bool]:
     t = type(self)
     state = None
@@ -255,8 +263,10 @@ def date_inclusion_valid(
             state = self.update(calendar, state, current)
             excl = INCLUDES[t][self.k]
         if isinstance(current, datetime.datetime):
-            return current.date() not in excl
-        return current not in excl
+            res = current.date() not in excl
+        else:
+            res = current not in excl
+        return res if val else not res
     return f
 
 # ---------------------------------------------------------------
@@ -324,6 +334,8 @@ class Manager_Pandas_Market_Calendar(typing.NamedTuple):
     k: str
     window: datetime.timedelta
 
+    closed: bool = False
+
     def f_excludes(self, start, end):
         cal = pandas_market_calendars.get_calendar(self.k)
         valid = frozenset([
@@ -345,7 +357,7 @@ class Manager_Pandas_Market_Calendar(typing.NamedTuple):
         calendar: Stateful,
     ) -> typing.Callable[[DDT], bool]:
         return date_exclusion_valid(
-            self, calendar
+            self, calendar, not self.closed
         )
 
     def in_scope(
@@ -386,6 +398,8 @@ class Manager_Holidays_Country(typing.NamedTuple):
     window: datetime.timedelta
     subdict: typing.Optional[str] = None
 
+    exclude: bool = True
+
     def f_excludes(self, start, end):
         hols = holidays.country_holidays(
             self.k, subdiv=self.subdiv
@@ -403,7 +417,7 @@ class Manager_Holidays_Country(typing.NamedTuple):
         calendar: Stateful,
     ) -> typing.Callable[[DDT], bool]:
         return date_exclusion_valid(
-            self, calendar
+            self, calendar, self.exclude
         )
 
     def in_scope(
@@ -439,6 +453,8 @@ class Manager_Holidays_Financial(typing.NamedTuple):
     k: str
     window: datetime.timedelta
 
+    exclude: bool = True
+
     def f_excludes(self, start, end):
         hols = holidays.financial_holidays(self.k)
         _, gen = iteration.Iterator(
@@ -454,7 +470,7 @@ class Manager_Holidays_Financial(typing.NamedTuple):
         calendar: Stateful,
     ) -> typing.Callable[[DDT], bool]:
         return date_exclusion_valid(
-            self, calendar
+            self, calendar, self.exclude
         )
 
     def in_scope(
