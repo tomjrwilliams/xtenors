@@ -56,12 +56,10 @@ class Tenor(typing.NamedTuple):
 
 # ---------------------------------------------------------------
 
-# add tenor and tenor?
-
 def add(
     left: typing.Union[DDT, Tenor],
     right: Tenor,
-    iterator: typing.Optional[iteration.Iterator ]= None,
+    iterator: typing.Optional[iteration.Iterator] = None,
     adjust: bool = False,
     flags=None,
 ):

@@ -132,18 +132,20 @@ day_count_funcs = xt.iTuple([
 ])
 
 assert (
-    xt.iTuple(conventions.DAY_COUNT.__members__.items())
+    xt.iTuple(conventions.Day_Count.__members__.items())
     .zip(
         day_count_funcs.map(lambda f: f.__name__),
         xt.iTuple.range(day_count_funcs.len()),
     )
-    .all(lambda enum_item, f_name, i: (
-        f_name == "day_count_{}".format(enum_item[0].lower()) 
-        and i == enum_item[1].value
+    .all(lambda kv, f_name, i: (
+        f_name.lower() == "day_count_{}".format(kv[0].lower()) 
+        and i == kv[1].value -1
     ), star = True)
 ), dict(
-    enum=conventions.DAY_COUNT,
-    funcs=day_count_funcs,
+    keys=xt.iTuple(conventions.Day_Count.__members__.keys()),
+    values=xt.iTuple(conventions.Day_Count.__members__.values()),
+    irange=xt.iTuple.range(day_count_funcs.len()),
+    funcs=day_count_funcs.map(lambda f: f.__name__),
 )
 
 # ---------------------------------------------------------------
@@ -154,8 +156,8 @@ def day_count(ddt1, ddt2, flags = None):
     """
     if flags is None:
         flags = conventions
-    count = flags.get(conventions.DAY_COUNT)
-    return day_count_funcs[count.value](ddt1, ddt2)
+    count = flags.get(conventions.Day_Count)
+    return day_count_funcs[count.value - 1](ddt1, ddt2)
 
 # ---------------------------------------------------------------
 
@@ -239,7 +241,13 @@ def day_factor_actual_actual_isda(f_count, ddt1, ddt2):
     )
 
 # TODO: check should adjust
-def day_factor_actual_actual_afb(f_count, ddt1, ddt2):
+def day_factor_actual_actual_afb(
+    f_count,
+    ddt1,
+    ddt2,
+    iterator,
+    flags,
+):
 
     dc = f_count(ddt1, ddt2)
 
@@ -249,11 +257,19 @@ def day_factor_actual_actual_afb(f_count, ddt1, ddt2):
     sign = 1 if ddt1 < ddt2 else -1
     n_years = max_ddt.year - min_ddt.year
 
-    dt_adj = adjustments.adjust(
-        arithmetic.add(max_ddt, years=n_years)
+    # adjustment needs an iterator
+    ddt_adj = adjustments.adjust(
+        arithmetic.add(
+            max_ddt,
+            years=n_years,
+            iterator=iterator,
+            flags=flags,
+        ),
+        iterator,
+        flags=flags,
     )
 
-    dc_adj = day_count(ddt1, dt_adj)
+    dc_adj = day_count(ddt1, ddt_adj)
 
     return sign * sum((
         n_years,
@@ -281,18 +297,20 @@ day_factor_funcs = xt.iTuple([
 ])
 
 assert (
-    xt.iTuple(conventions.DAY_COUNT_FACTOR.__members__.items())
+    xt.iTuple(conventions.Day_Count_Factor.__members__.items())
     .zip(
         day_factor_funcs.map(lambda f: f.__name__),
-        xt.iTuple.range(day_count_funcs.len()),
+        xt.iTuple.range(day_factor_funcs.len()),
     )
-    .all(lambda enum_item, f_name, i: (
-        f_name == "day_factor_{}".format(enum_item[0].lower()) 
-        and i == enum_item[1].value
+    .all(lambda kv, f_name, i: (
+        f_name.lower() == "day_factor_{}".format(kv[0].lower()) 
+        and i == kv[1].value -1
     ), star = True)
 ), dict(
-    enum=conventions.DAY_COUNT_FACTOR,
-    funcs=day_count_funcs,
+    keys=xt.iTuple(conventions.Day_Count_Factor.__members__.keys()),
+    values=xt.iTuple(conventions.Day_Count_Factor.__members__.values()),
+    irange=xt.iTuple.range(day_factor_funcs.len()),
+    funcs=day_factor_funcs.map(lambda f: f.__name__),
 )
 
 # ---------------------------------------------------------------
@@ -301,28 +319,41 @@ assert (
 # ddt2 = date through which interest accured. for bonds=settlement
 # ddt3 = next coupon date, maturity date if no more interim payments, for regular coupon periods ddt2 == ddt3
 
-def day_factor(ddt1, ddt2, ddt3 = None, freq = None, flags = None):
+def day_factor(
+    ddt1,
+    ddt2,
+    ddt3 = None,
+    freq = None,
+    flags = None,
+    iterator: typing.Optional[iteration.Iterator] = None,
+):
     """
-
+    >>> ddt1 = datetime.date(2020, 2, 1)
+    >>> ddt2 = datetime.date(2020, 4, 1)
+    >>> ddt3 = datetime.date(2020, 3, 1)
+    >>> freq = 1
     """
     if flags is None:
         flags = conventions
 
-    count = flags.get(conventions.DAY_COUNT)
-    factor = flags.get(conventions.DAY_COUNT_FACTOR)
+    count = flags.get(conventions.Day_Count)
+    factor = flags.get(conventions.Day_Count_Factor)
 
-    f_count = day_count_funcs[count.value]
-    f_factor = day_factor_funcs[count.value]
+    f_count = day_count_funcs[count.value - 1]
+    f_factor = day_factor_funcs[factor.value - 1]
 
-    if factor is conventions.DAY_COUNT_FACTOR.ACTUAL_ACTUAL_ICMA:
+    if factor is conventions.Day_Count_Factor.ACTUAL_ACTUAL_ICMA:
         assert ddt3 is not None, ddt3
         assert freq is not None, freq
         args = (ddt3, freq,)
 
-    elif factor is conventions.DAY_COUNT_FACTOR.ACTUAL_365_L:
+    elif factor is conventions.Day_Count_Factor.ACTUAL_365_L:
         assert freq is not None, freq
         args = (freq,)
 
+    elif factor is conventions.Day_Count_Factor.ACTUAL_ACTUAL_AFB:
+        assert iterator is not None, iterator
+        args = (iterator, flags,)
     else:
         args = ()
 

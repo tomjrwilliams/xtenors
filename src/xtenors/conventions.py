@@ -56,6 +56,8 @@ class Overflow(enum.Enum):
     PREV = -1
     NEXT = 1
 
+# ---------------------------------------------------------------
+
 class Roll(enum.Enum):
     ERROR = 0
     PRECEDING = -1
@@ -65,11 +67,12 @@ class Modified(enum.Enum):
     UNMODIFIED = 0
     MODIFIED = 1
 
+# ---------------------------------------------------------------
+
 class Format(enum.Enum):
     ISO = 0
     
 # ---------------------------------------------------------------
-
 
 DAY_COUNTS = xt.iTuple([
     "SIMPLE",
@@ -81,9 +84,7 @@ DAY_COUNTS = xt.iTuple([
     "N_30E_PLUS_360",
     "N_1_1",
 ])
-DAY_COUNT = enum.Enum({
-    s: i for i, s in DAY_COUNTS.enumerate()
-})
+Day_Count = enum.Enum("Day_Count", DAY_COUNTS)
 
 DAY_COUNT_FACTORS = xt.iTuple([
     "N_360",
@@ -96,9 +97,7 @@ DAY_COUNT_FACTORS = xt.iTuple([
     "ACTUAL_ACTUAL_AFB",
     "N_1_1",
 ])
-DAY_COUNT_FACTOR = enum.Enum({
-    s: i for i, s in DAY_COUNT_FACTORS.enumerate()
-})
+Day_Count_Factor = enum.Enum("Day_Count_Factor", DAY_COUNT_FACTORS)
 
 # ---------------------------------------------------------------
 

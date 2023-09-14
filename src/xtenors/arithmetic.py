@@ -76,11 +76,11 @@ def add(
     Traceback (most recent call last):
      ...
     ValueError: day is out of range for month
-    >>> _ = conventions.set(conventions.Overflow.PREV)
-    >>> add(ddt, months=1)
+    >>> with conventions.context(conventions.Overflow.PREV):
+    ...     add(ddt, months=1)
     datetime.date(2020, 2, 29)
-    >>> _ = conventions.set(conventions.Overflow.NEXT)
-    >>> add(ddt, months=1)
+    >>> with conventions.context(conventions.Overflow.NEXT):
+    ...     add(ddt, months=1)
     datetime.date(2020, 3, 1)
     """
     if (
