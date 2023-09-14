@@ -153,6 +153,26 @@ class Stateful(typing.NamedTuple):
             accept=accept
         )
 
+    @classmethod
+    def pandas_market_calendar(
+        cls, k, window
+    ):
+        return cls(Manager_Pandas_Market_Calendar(k, window))
+
+    @classmethod
+    def holidays_country(
+        cls, k, window, subdiv = None
+    ):
+        return cls(Manager_Holidays_Country(
+            k, window, subdiv = subdiv
+        ))
+
+    @classmethod
+    def holidays_financial(
+        cls, k, window
+    ):
+        return cls(Manager_Holidays_Financial(k, window))
+
 # ---------------------------------------------------------------
 
 # NOTE: we have a global inclusion / exclusion list
@@ -286,13 +306,7 @@ def date_exclusion_update(
         return state
 
     f_extend(
-        type(self),
-        self.k, 
-        f_excludes(
-            self.k,
-            start,
-            end
-        )
+        type(self), self.k, f_excludes(start, end)
     )
     return state
 
@@ -310,9 +324,8 @@ class Manager_Pandas_Market_Calendar(typing.NamedTuple):
     k: str
     window: datetime.timedelta
 
-    @classmethod
-    def f_excludes(cls, k, start, end):
-        cal = pandas_market_calendars.get_calendar(k)
+    def f_excludes(self, start, end):
+        cal = pandas_market_calendars.get_calendar(self.k)
         valid = frozenset([
             d.to_pydatetime().date() for d in cal.valid_days(
                 start_date=start,
@@ -371,10 +384,12 @@ class Manager_Holidays_Country(typing.NamedTuple):
 
     k: str
     window: datetime.timedelta
+    subdict: typing.Optional[str] = None
 
-    @classmethod
-    def f_excludes(cls, k, start, end):
-        hols = holidays.country_holidays(k)
+    def f_excludes(self, start, end):
+        hols = holidays.country_holidays(
+            self.k, subdiv=self.subdiv
+        )
         _, gen = iteration.Iterator(
             start,
             days(1),
@@ -424,9 +439,8 @@ class Manager_Holidays_Financial(typing.NamedTuple):
     k: str
     window: datetime.timedelta
 
-    @classmethod
-    def f_excludes(cls, k, start, end):
-        hols = holidays.financial_holidays(k)
+    def f_excludes(self, start, end):
+        hols = holidays.financial_holidays(self.k)
         _, gen = iteration.Iterator(
             start,
             days(1),
