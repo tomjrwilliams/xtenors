@@ -255,17 +255,17 @@ def date_inclusion_valid(
 ) -> typing.Callable[[DDT], bool]:
     t = type(self)
     state = None
-    excl = INCLUDES[t][self.k]
+    incl = INCLUDES[t][self.k]
     def f(current: DDT) -> bool:
         nonlocal state
-        nonlocal excl
+        nonlocal incl
         if not self.in_scope(calendar, state, current):
             state = self.update(calendar, state, current)
-            excl = INCLUDES[t][self.k]
+            incl = INCLUDES[t][self.k]
         if isinstance(current, datetime.datetime):
-            res = current.date() not in excl
+            res = current.date() in incl
         else:
-            res = current not in excl
+            res = current in incl
         return res if val else not res
     return f
 
@@ -446,6 +446,8 @@ class Manager_Holidays_Country(typing.NamedTuple):
             current,
             self.f_excludes,
         )
+
+# ---------------------------------------------------------------
 
 @xt.nTuple.decorate()
 class Manager_Holidays_Financial(typing.NamedTuple):
