@@ -39,6 +39,21 @@ class Tenor(typing.NamedTuple):
 
     # adjust
 
+    @classmethod
+    def parse(cls, s: str) -> Tenor:
+        unit = s[-1]
+        val = int(s[:-1])
+        if unit == "Y":
+            return cls(Y=val)
+        elif unit == "M":
+            return cls(M=val)
+        elif unit == "W":
+            return cls(W=val)
+        elif unit == "D":
+            return cls(D=val)
+        else:
+            assert False, s
+
     def add(
         self: Tenor,
         ddt: typing.Union[DDT, Tenor],
