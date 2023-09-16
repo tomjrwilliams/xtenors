@@ -16,6 +16,8 @@ import xtuples as xt
 from .dates import *
 from .units import *
 
+# TODO: rename iteration as iterators for consistency
+
 from . import conventions
 from . import iteration
 from . import calendars
@@ -38,6 +40,9 @@ class Tenor(typing.NamedTuple):
     # h / m / s / ms / ... ?
 
     # adjust
+
+    # TODO: worth trying to compile this with cypy / similar
+    # as this will presumably be a fair amount of run time cost    
 
     @classmethod
     def parse(cls, s: str) -> Tenor:

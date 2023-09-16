@@ -23,21 +23,17 @@ manager = xt.Flags()
 def get(*enum_types):
     """
     >>> get(Overflow)
-    >>> set(Overflow.NEXT)
-    <Overflow.NEXT: 1>
+    >>> _ = set(Overflow.NEXT)
     >>> get(Overflow)
     <Overflow.NEXT: 1>
     >>> with context(Overflow.PREV) as overflow:
-    ...     print(overflow)
     ...     print(get(Overflow))
-    Overflow.PREV
     Overflow.PREV
     >>> get(Overflow)
     <Overflow.NEXT: 1>
     >>> get(Overflow, Format)
     iTuple(<Overflow.NEXT: 1>, None)
-    >>> set(Format.ISO)
-    <Format.ISO: 0>
+    >>> _ = set(Format.ISO)
     >>> get(Overflow, Format)
     iTuple(<Overflow.NEXT: 1>, <Format.ISO: 0>)
     """
