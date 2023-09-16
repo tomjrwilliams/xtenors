@@ -2,7 +2,10 @@
 import timeit
 import datetime
 
-from financepy.utils.date import Date as FinDate
+from financepy.utils.frequency import FrequencyTypes
+from financepy.utils.day_count import DayCount, DayCountTypes
+from financepy.utils.date import Date as Date
+
 
 import xtenors
 import xtuples as xt
@@ -21,7 +24,10 @@ def unindent(s):
     return "\n".join([
         "import datetime",
         "import xtenors",
-        "from financepy.utils.date import Date as FinDate",
+        "import xtuples as xt",
+        "from financepy.utils.date import Date",
+        "from financepy.utils.frequency import FrequencyTypes",
+        "from financepy.utils.day_count import DayCount, DayCountTypes",
     ] + [l[white:] for l in ls])
 
 import inspect
@@ -38,6 +44,24 @@ def make_spec(f, **kwargs):
         f=f,
     )
 
+import numpy
+def time_func(f, iters = 10 ** 5, max_run = 5 * (10 ** 6)):
+    total_run = 0
+    samples = []
+    start = datetime.datetime.now()
+    runs = int(iters / 100)
+    for i in range(100):
+        res = [f() for _ in range(runs)]
+        end = datetime.datetime.now()
+        t = (end - start).microseconds
+        samples.append(t)
+        total_run += t
+        if total_run > max_run:
+            break
+        start = end
+    average = numpy.mean(samples)
+    return average / 1000 # in milliseconds
+
 def compare_speeds(f1, f2, **kwargs):
 
     spec1 = make_spec(f1, **kwargs)
@@ -45,8 +69,11 @@ def compare_speeds(f1, f2, **kwargs):
     
     print("--")
 
-    res1 = timeit.timeit(stmt=spec1["stmt"], setup=spec1["setup"])
-    res2 = timeit.timeit(stmt=spec2["stmt"], setup=spec2["setup"])
+    res1 = time_func(f1)
+    res2 = time_func(f2)
+
+    # res1 = timeit.timeit(stmt=spec1["stmt"], setup=spec1["setup"])
+    # res2 = timeit.timeit(stmt=spec2["stmt"], setup=spec2["setup"])
 
     # TODO: check result same
 
@@ -65,7 +92,7 @@ def compare_speeds(f1, f2, **kwargs):
 
 def add_years_financepy():
     def f():
-        d = FinDate(1, 1, 2010)
+        d = Date(1, 1, 2010)
         return d.add_years(3)
     f.__name__ = "add_years_financepy"
     return f
@@ -80,13 +107,51 @@ def add_years_xtenors():
 def test_add_years():
     compare_speeds(add_years_financepy(), add_years_xtenors())
     
+
+# ---------------------------------------------------------------
+
+# round(answer[0], 4) == 0.3889
+def year_frac_30_360_bond_financepy():
+    def f():
+        start = Date(1, 1, 2019)
+        end = Date(21, 5, 2019)
+        finFreq = FrequencyTypes.ANNUAL
+        day_count_type = DayCountTypes.THIRTY_360_BOND
+        day_count = DayCount(day_count_type)
+        return day_count.year_frac(start, end, end, finFreq)
+    f.__name__ = "year_frac_30_360_bond_financepy"
+    return f 
+
+def year_frac_30_360_bond_xtenors():
+    flags=xt.Flags().set(
+        xtenors.conventions.Day_Count.N_30_360_BOND,
+        xtenors.conventions.Day_Count_Factor.N_360,
+    )
+    def f():
+        start = datetime.date(2019, 1, 1)
+        end = datetime.date(2019, 5, 21)
+        return xtenors.day_factor(
+            start,
+            end,
+            freq=1.,
+            flags=flags,
+        )
+    f.__name__ = "year_frac_30_360_bond_xtenors"
+    return f
+
+def test_day_counts():
+    compare_speeds(
+        year_frac_30_360_bond_financepy(), 
+        year_frac_30_360_bond_xtenors(), 
+    )
+
 # ---------------------------------------------------------------
 
 # TODO: test results as well
 
 def add_tenor_financepy(_tenor_):
     def f():
-        d = FinDate(1, 1, 2010)
+        d = Date(1, 1, 2010)
         return d.add_tenor(_tenor_)
     f.__name__ = "f_add_tenor_financepy{}".format(_tenor_.replace(
         "-", "_"
