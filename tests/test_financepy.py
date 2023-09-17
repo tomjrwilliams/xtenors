@@ -2,10 +2,12 @@
 import timeit
 import datetime
 
+import numpy
+
+
 from financepy.utils.frequency import FrequencyTypes
 from financepy.utils.day_count import DayCount, DayCountTypes
 from financepy.utils.date import Date as Date
-
 
 import xtenors
 import xtuples as xt
@@ -44,8 +46,7 @@ def make_spec(f, **kwargs):
         f=f,
     )
 
-import numpy
-def time_func(f, iters = 10 ** 5, max_run = 5 * (10 ** 6)):
+def time_func(f, iters = 10 ** 5, max_run = 10 * (10 ** 6)):
     total_run = 0
     samples = []
     start = datetime.datetime.now()
@@ -123,10 +124,10 @@ def year_frac_30_360_bond_financepy():
     return f 
 
 def year_frac_30_360_bond_xtenors():
-    flags=xt.Flags().set(
-        xtenors.conventions.Day_Count.N_30_360_BOND,
-        xtenors.conventions.Day_Count_Factor.N_360,
-    )
+    # flags=xt.Flags().set(
+    #     xtenors.conventions.Day_Count.N_30_360_BOND,
+    #     xtenors.conventions.Day_Count_Factor.N_360,
+    # )
     def f():
         start = datetime.date(2019, 1, 1)
         end = datetime.date(2019, 5, 21)
@@ -134,7 +135,9 @@ def year_frac_30_360_bond_xtenors():
             start,
             end,
             freq=1.,
-            flags=flags,
+            count=xtenors.conventions.Day_Count.N_30_360_BOND,
+            factor=xtenors.conventions.Day_Count_Factor.N_360,
+            # flags=flags,
         )
     f.__name__ = "year_frac_30_360_bond_xtenors"
     return f

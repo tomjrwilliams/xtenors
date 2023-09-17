@@ -12,6 +12,8 @@ import functools
 import datetime
 import calendar
 
+import cython
+
 import xtuples as xt
 
 from .dates import *
@@ -34,14 +36,33 @@ def _ndays_february(y):
 def _is_leap_year(y):
     return _ndays_february(y) == 29
 
+# no speed improvement :(
+# @cython.cfunc
+# @cython.returns(cython.int)
+# @cython.locals(
+#     y1=cython.int,
+#     y2=cython.int,
+#     m1=cython.int,
+#     m2=cython.int,
+#     d1=cython.int,
+#     d2=cython.int,
+# )
 def pack_30_360(y1, y2, m1, m2, d1, d2):
-    return sum((
-        360 * (y2 - y1),
-        30 * (m2 - m1),
-        d2 - d1
-    ))
+    return (
+        (d2 - d1)
+        + (360 * (y2 - y1))
+        + (30 * (m2 - m1))
+    )
 
 # ---------------------------------------------------------------
+
+# TODO: try out passing the feb, etc. 
+# unpacked y, m, d into the below
+
+# and then implementing them in cython
+
+# could define a CDate struct with the three ints
+# and pass those around instead?
 
 def day_count_simple(ddt1, ddt2):
     return (ddt2 - ddt1).days
@@ -150,13 +171,13 @@ assert (
 
 # ---------------------------------------------------------------
 
-def day_count(ddt1, ddt2, flags = None):
+def day_count(ddt1, ddt2, count=None, flags = None):
     """
     
     """
-    if flags is None:
-        flags = conventions
-    count = flags.get(conventions.Day_Count)
+    # if flags is None:
+    #     flags = conventions
+    # count = flags.get(conventions.Day_Count)
     return day_count_funcs[count.value - 1](ddt1, ddt2)
 
 # ---------------------------------------------------------------
@@ -221,10 +242,10 @@ def day_factor_actual_actual_isda(f_count, ddt1, ddt2):
     
     sign = 1 if ddt1 < ddt2 else -1
 
-    left_stub = day_count(min_ddt, datetime.date(
+    left_stub = f_count(min_ddt, datetime.date(
         min_ddt.year + 1, 1, 1
     ))
-    right_stub = day_count(datetime.date(
+    right_stub = f_count(datetime.date(
         max_ddt.year - 1, 12, 31
     ), max_ddt)
 
@@ -269,7 +290,7 @@ def day_factor_actual_actual_afb(
         flags=flags,
     )
 
-    dc_adj = day_count(ddt1, ddt_adj)
+    dc_adj = f_count(ddt1, ddt_adj)
 
     return sign * sum((
         n_years,
@@ -324,7 +345,9 @@ def day_factor(
     ddt2,
     ddt3 = None,
     freq = None,
-    flags = None,
+    # flags = None,
+    count=None,
+    factor=None,
     iterator: typing.Optional[iteration.Iterator] = None,
 ):
     """
@@ -333,11 +356,11 @@ def day_factor(
     >>> ddt3 = datetime.date(2020, 3, 1)
     >>> freq = 1
     """
-    if flags is None:
-        flags = conventions
+    # if flags is None:
+    #     flags = conventions
 
-    count = flags.get(conventions.Day_Count)
-    factor = flags.get(conventions.Day_Count_Factor)
+    # count = flags.get(conventions.Day_Count)
+    # factor = flags.get(conventions.Day_Count_Factor)
 
     f_count = day_count_funcs[count.value - 1]
     f_factor = day_factor_funcs[factor.value - 1]
