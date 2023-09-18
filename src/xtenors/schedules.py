@@ -1,22 +1,40 @@
+
+# ---------------------------------------------------------------
+
 # https://github.com/domokane/FinancePy/blob/master/financepy/utils/schedule.py
 
-# map coupon freq to num months
+# ---------------------------------------------------------------
 
-# iterate between effective and term date
+# TODO: eom
+# TODO: adjust term (default yes in cds, no in swap)
 
-# all dates from either first or last in range
-# and bound with other
+def generate_forward(
+    ddt1, ddt2, tenor, iterator=None,
+):
+    return
 
-# fowrad vs backward
 
+def generate_backward(
+    ddt1, ddt2, tenor, iterator=None,
+):
+    return
 
+def generate(
+    ddt1, ddt2, tenor, schedule=None, # = direction
+):
+    return
 
-# then payments generated as 
+# ---------------------------------------------------------------
+
+# then payments generated as
 
 # year_frac (= day_factor) between each pair of dates in schwedule
 # payment = frac * notional * coupon
 
 # optional payment lag from coupon date
 
+# ---------------------------------------------------------------
 
-# payments / flows can then be valued against a given discount curve
+# payments == flows can then be valued against a given discount curve
+
+# ---------------------------------------------------------------

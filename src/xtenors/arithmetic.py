@@ -65,11 +65,11 @@ ym = dict(y=cython.int, m=cython.int)
 @cython.cfunc
 @cython.returns(tuple[cython.int, cython.int])
 @cython.locals(
-    **ym, years=cython.int, months=cython.int, _years=cython.int
+    **ym, years=cython.int, months=cython.int, _y=cython.int
 )
 def add_y_m_C(y, m, years, months):
-    _years, m = divmod(m + months - 1, 12)
-    return y + years + _years, m + 1
+    _y, m = divmod(m + months - 1, 12)
+    return y + years + _y, m + 1
     
 @cython.cfunc
 @cython.returns(tuple[cython.int, cython.int, cython.int])
@@ -262,7 +262,12 @@ def add_C(
     else:
         y, m, d = unpack_date(ddt)
 
-    if overflow is None or overflow is conventions.Overflow.ERROR:
+    if overflow is None:
+        dt = datetime.date(
+            *add_y_m_C(y, m, years, months), d
+        )
+        
+    elif overflow is conventions.Overflow.ERROR:
         dt = datetime.date(
             *add_y_m_C(y, m, years, months), d
         )
@@ -282,6 +287,8 @@ def add_C(
                 y, m, d, years, months, d_max
             )
         )
+    else:
+        assert False, overflow
 
     if is_date_strict(ddt):
         return dt

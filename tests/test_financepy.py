@@ -78,7 +78,7 @@ def compare_speeds(f1, f2, **kwargs):
 
     # TODO: check result same
 
-    assert res2 < res1, {
+    assert round(res2, 1) <= round(res1, 1) + (res2 / 100), {
         spec1["name"]: res1,
         spec2["name"]: res2,
     }

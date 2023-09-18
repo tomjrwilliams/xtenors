@@ -31,27 +31,33 @@ from . import adjustments
     cython.int, cython.int, cython.int, cython.int
 ])
 @cython.locals(
-    s = cython.p_char, unit = cython.p_char, v = cython.int
+    s = cython.p_char,
+    unit = cython.char,
+    v = cython.int,
 )
 def parse_C(s):
     unit = s[-1]
     v = int(s[:-1])
-    if unit == "Y":
+    if unit == 'Y':
+    # if unit == 89:
         return (v, 0, 0, 0)
-    elif unit == "M":
+    elif unit == 'M':
+    # elif unit == 77:
         return (0, v, 0, 0)
-    elif unit == "W":
+    elif unit == 'W':
+    # elif unit == 87:
         return (0, 0, v, 0)
-    elif unit == "D":
+    elif unit == 'D':
+    # elif unit == 68:
         return (0, 0, 0, v)
     else:
-        assert False, s
+        assert False, (unit, v)
 
 @xt.nTuple.decorate()
 class Tenor(typing.NamedTuple):
 
     # deliberately no __add__
-    # as what about iterator - force one to be explicit
+    # as what about iterator / overflow - forces one to be explicit
     
     Y: typing.Optional[int] = 0
     M: typing.Optional[int] = 0
@@ -62,26 +68,24 @@ class Tenor(typing.NamedTuple):
 
     # h / m / s / ms / ... ?
 
-    # adjust  
-    
-    # @classmethod
-    # def parse(cls, s: str) -> Tenor:
-    #     unit = s[-1]
-    #     val = int(s[:-1])
-    #     if unit == "Y":
-    #         return cls(Y=val)
-    #     elif unit == "M":
-    #         return cls(M=val)
-    #     elif unit == "W":
-    #         return cls(W=val)
-    #     elif unit == "D":
-    #         return cls(D=val)
-    #     else:
-    #         assert False, s
+    # adjust
 
     @classmethod
     def parse(cls, s: str, overflow = None) -> Tenor:
+        """
+        >>> Tenor.parse("1D")
+        Tenor(Y=0, M=0, W=0, D=1, overflow=None)
+        >>> Tenor.parse("1W")
+        Tenor(Y=0, M=0, W=1, D=0, overflow=None)
+        >>> Tenor.parse("1M")
+        Tenor(Y=0, M=1, W=0, D=0, overflow=None)
+        >>> Tenor.parse("1Y")
+        Tenor(Y=1, M=0, W=0, D=0, overflow=None)
+        """
         return cls(*parse_C(s), overflow = overflow)
+        # return cls(
+        #     *parse_C(s.encode("UTF-8")), overflow = overflow
+        # )
 
     def add(
         self: Tenor,
