@@ -27,6 +27,9 @@ from . import counts
 from .dates import *
 from .units import *
 from .iteration import Iterator
-from .counts import day_count, day_factor
+from .counts import (
+    day_count, day_factor, day_count_C, day_factor_C
+    #
+)
 from .adjustments import adjust
 from .xtenors import *

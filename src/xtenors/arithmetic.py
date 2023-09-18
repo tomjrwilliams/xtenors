@@ -11,6 +11,8 @@ import functools
 import datetime
 import calendar
 
+import cython
+
 import xtuples as xt
 
 from .dates import *
@@ -23,12 +25,7 @@ from . import calendars
 
 # ---------------------------------------------------------------
 
-def overflow_date(y, m, d, flags = None):
-
-    if flags is None:
-        flags = conventions
-
-    overflow = flags.get(conventions.Overflow)
+def overflow_date(y, m, d, overflow = None):
 
     if overflow is None or overflow is conventions.Overflow.ERROR:
         return datetime.date(y, m, d)
@@ -56,33 +53,68 @@ def pack_date(y, m, d, flags = None):
 
 # ---------------------------------------------------------------
 
-def add(
+ymd = dict(
+    y=cython.int, 
+    m=cython.int, 
+    d=cython.int,
+)
+ym = dict(y=cython.int, m=cython.int)
+
+# ---------------------------------------------------------------
+
+@cython.cfunc
+@cython.returns(tuple[cython.int, cython.int])
+@cython.locals(
+    **ym, years=cython.int, months=cython.int, _years=cython.int
+)
+def add_y_m_C(y, m, years, months):
+    _years, m = divmod(m + months - 1, 12)
+    return y + years + _years, m + 1
+    
+@cython.cfunc
+@cython.returns(tuple[cython.int, cython.int, cython.int])
+@cython.locals(
+    **ymd, years=cython.int, months=cython.int, d_max=cython.int
+)
+def add_y_m_overflow_prev_C(y, m, d, years, months, d_max):
+
+    y, m = add_y_m_C(y, m, years, months)
+    
+    # --
+
+    if d > d_max:
+        d = d_max
+
+    return y, m, d
+
+@cython.cfunc
+@cython.returns(tuple[cython.int, cython.int, cython.int])
+@cython.locals(
+    **ymd, years=cython.int, months=cython.int, d_max=cython.int
+)
+def add_y_m_overflow_next_C(y, m, d, years, months, d_max):
+
+    y, m = add_y_m_C(y, m, years, months)
+    
+    # --
+
+    if d > d_max:
+        years, m = divmod(m + 1 - 1, 12)
+        return y + years, m + 1, 1
+
+    return y, m, d
+
+
+# ---------------------------------------------------------------
+
+def add_time(
     ddt: DDT,
-    years=0,
-    months=0,
-    weeks=0,
-    days=0,
     hours=0,
     minutes=0,
     seconds=0,
     milliseconds=0,
     microseconds=0,
-    iterator: typing.Optional[iteration.Iterator] = None,
-    flags=None,
 ):
-    """
-    >>> ddt = datetime.date(2020, 1, 31)
-    >>> add(ddt, months=1)
-    Traceback (most recent call last):
-     ...
-    ValueError: day is out of range for month
-    >>> with conventions.context(conventions.Overflow.PREV):
-    ...     add(ddt, months=1)
-    datetime.date(2020, 2, 29)
-    >>> with conventions.context(conventions.Overflow.NEXT):
-    ...     add(ddt, months=1)
-    datetime.date(2020, 3, 1)
-    """
     if (
         seconds != 0
         or microseconds != 0
@@ -97,8 +129,117 @@ def add(
             milliseconds=milliseconds,
             minutes=minutes,
             hours=hours,
-            weeks=weeks,
         )
+    return ddt
+
+# ---------------------------------------------------------------
+
+def add_py(
+    ddt: DDT,
+    years=0,
+    months=0,
+    weeks=0,
+    days=0,
+    hours=0,
+    minutes=0,
+    seconds=0,
+    milliseconds=0,
+    microseconds=0,
+    iterator: typing.Optional[iteration.Iterator] = None,
+    overflow=None,
+):
+    """
+    >>> ddt = datetime.date(2020, 1, 31)
+    >>> add_py(ddt, months=1)
+    Traceback (most recent call last):
+     ...
+    ValueError: day is out of range for month
+    >>> add_py(ddt, months=1, overflow=conventions.Overflow.PREV)
+    datetime.date(2020, 2, 29)
+    >>> add_py(ddt, months=1, overflow=conventions.Overflow.NEXT)
+    datetime.date(2020, 3, 1)
+    """
+    ddt = add_time(
+        ddt,
+        hours=hours,
+        minutes=minutes,
+        seconds=seconds,
+        milliseconds=milliseconds,
+        microseconds=microseconds,
+    )
+
+    days += weeks * 7
+
+    if days != 0 and iterator is None:
+        ddt = ddt + datetime.timedelta(days=days)
+        y, m, d = unpack_date(ddt)
+
+    elif days != 0:
+        iterator, gen = iterator.update(
+            start=(
+                ddt
+                if not isinstance(ddt, datetime.datetime)
+                else ddt.date()
+            ),
+            step=days(1 if days > 0 else -1)
+        )
+        end = xt.iTuple.n_from(gen, days)[-1]
+        y, m, d = unpack_date(end)
+
+    else:
+        y, m, d = unpack_date(ddt)
+    
+    y += years
+    m += months
+
+    years, m = divmod(m - 1, 12)
+
+    m += 1
+    y += years
+
+    dt = pack_date(y, m, d)
+
+    if is_date_strict(ddt):
+        return dt
+
+    return datetime.datetime(
+        *unpack_date(dt),
+        *unpack_time(ddt),
+    )
+
+def add_C(
+    ddt: DDT,
+    years=0,
+    months=0,
+    weeks=0,
+    days=0,
+    hours=0,
+    minutes=0,
+    seconds=0,
+    milliseconds=0,
+    microseconds=0,
+    iterator: typing.Optional[iteration.Iterator] = None,
+    overflow=None,
+):
+    """
+    >>> ddt = datetime.date(2020, 1, 31)
+    >>> add_C(ddt, months=1)
+    Traceback (most recent call last):
+     ...
+    ValueError: day is out of range for month
+    >>> add_C(ddt, months=1, overflow=conventions.Overflow.PREV)
+    datetime.date(2020, 2, 29)
+    >>> add_C(ddt, months=1, overflow=conventions.Overflow.NEXT)
+    datetime.date(2020, 3, 1)
+    """
+    ddt = add_time(
+        ddt,
+        hours=hours,
+        minutes=minutes,
+        seconds=seconds,
+        milliseconds=milliseconds,
+        microseconds=microseconds,
+    )
 
     days += weeks * 7
 
@@ -121,20 +262,38 @@ def add(
     else:
         y, m, d = unpack_date(ddt)
 
-    y += years
-    m += months
+    if overflow is None or overflow is conventions.Overflow.ERROR:
+        dt = datetime.date(
+            *add_y_m_C(y, m, years, months), d
+        )
 
-    years, m = divmod(m - 1, 12)
+    elif overflow is conventions.Overflow.NEXT:
+        d_max = calendar.monthrange(y, m)[1]
+        dt = datetime.date(
+            *add_y_m_overflow_next_C(
+                y, m, d, years, months, d_max
+            )
+        )
 
-    m += 1
-    y += years
+    elif overflow is conventions.Overflow.PREV:
+        d_max = calendar.monthrange(y, m)[1]
+        dt = datetime.date(
+            *add_y_m_overflow_prev_C(
+                y, m, d, years, months, d_max
+            )
+        )
 
     if is_date_strict(ddt):
-        return pack_date(y, m, d, flags = flags)
+        return dt
 
     return datetime.datetime(
-        *unpack_date(pack_date(y, m, d, flags = flags)),
+        *unpack_date(dt),
         *unpack_time(ddt),
     )
+
+# ---------------------------------------------------------------
+
+add = add_C
+# add = add_py
 
 # ---------------------------------------------------------------

@@ -9,6 +9,8 @@ import datetime
 
 import xtuples as xt
 
+import cython
+
 # ---------------------------------------------------------------
 
 DDT = typing.Union[datetime.date, datetime.datetime]
@@ -58,5 +60,5 @@ def unpack_time(ddt):
         dt.microsecond,
         #
     )
-    
+
 # ---------------------------------------------------------------

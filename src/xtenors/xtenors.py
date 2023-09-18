@@ -26,6 +26,27 @@ from . import adjustments
 
 # ---------------------------------------------------------------
 
+@cython.cfunc
+@cython.returns(tuple[
+    cython.int, cython.int, cython.int, cython.int
+])
+@cython.locals(
+    s = cython.p_char, unit = cython.p_char, v = cython.int
+)
+def parse_C(s):
+    unit = s[-1]
+    v = int(s[:-1])
+    if unit == "Y":
+        return (v, 0, 0, 0)
+    elif unit == "M":
+        return (0, v, 0, 0)
+    elif unit == "W":
+        return (0, 0, v, 0)
+    elif unit == "D":
+        return (0, 0, 0, v)
+    else:
+        assert False, s
+
 @xt.nTuple.decorate()
 class Tenor(typing.NamedTuple):
 
@@ -37,41 +58,46 @@ class Tenor(typing.NamedTuple):
     W: typing.Optional[int] = 0
     D: typing.Optional[int] = 0
 
+    overflow: typing.Optional[conventions.Overflow] = None
+
     # h / m / s / ms / ... ?
 
-    # adjust
-
-    # TODO: worth trying to compile this with cypy / similar
-    # as this will presumably be a fair amount of run time cost    
+    # adjust  
+    
+    # @classmethod
+    # def parse(cls, s: str) -> Tenor:
+    #     unit = s[-1]
+    #     val = int(s[:-1])
+    #     if unit == "Y":
+    #         return cls(Y=val)
+    #     elif unit == "M":
+    #         return cls(M=val)
+    #     elif unit == "W":
+    #         return cls(W=val)
+    #     elif unit == "D":
+    #         return cls(D=val)
+    #     else:
+    #         assert False, s
 
     @classmethod
-    def parse(cls, s: str) -> Tenor:
-        unit = s[-1]
-        val = int(s[:-1])
-        if unit == "Y":
-            return cls(Y=val)
-        elif unit == "M":
-            return cls(M=val)
-        elif unit == "W":
-            return cls(W=val)
-        elif unit == "D":
-            return cls(D=val)
-        else:
-            assert False, s
+    def parse(cls, s: str, overflow = None) -> Tenor:
+        return cls(*parse_C(s), overflow = overflow)
 
     def add(
         self: Tenor,
         ddt: typing.Union[DDT, Tenor],
         iterator: typing.Optional[iteration.Iterator] = None,
         adjust: bool = False,
-        flags=None,
+        overflow=None,
     ):
         return add(
             ddt,
             self,
             iterator=iterator,
             adjust=adjust,
-            flags=flags,
+            overflow=(
+                overflow if overflow is None else self.overflow
+            )
         )
 
 # ---------------------------------------------------------------
@@ -81,7 +107,7 @@ def add(
     right: Tenor,
     iterator: typing.Optional[iteration.Iterator] = None,
     adjust: bool = False,
-    flags=None,
+    overflow=None,
 ):
     if not isinstance(left, Tenor):
         ddt = left
@@ -93,16 +119,21 @@ def add(
             weeks=tenor.W,
             days=tenor.D,
             iterator=iterator,
-            flags=flags,
+            overflow=(
+                overflow if overflow is not None else tenor.overflow
+            )
         )
         return res if not adjust else adjustments.adjust(
-            res, flags=flags
+            res, overflow=overflow
         )
     return Tenor(
         Y=left.Y+right.Y,
         M=left.M+right.M,
         W=left.W+right.W,
         D=left.D+right.D,
+        overflow=(
+            overflow if overflow is not None else left.overflow
+        )
         #
     )
 

@@ -91,6 +91,25 @@ def compare_speeds(f1, f2, **kwargs):
 
 # TODO: test results as well
 
+def parse_tenor_xtenor():
+    def f():
+        return xtenors.Tenor.parse("3D")
+    f.__name__ = "parse_tenor_xtenor"
+    return f
+
+def parse_tenor_xtenor_C():
+    def f():
+        return xtenors.Tenor.parse("3D")
+    f.__name__ = "parse_tenor_xtenor_C"
+    return f
+
+def test_parse_tenor():
+    compare_speeds(parse_tenor_xtenor(), parse_tenor_xtenor_C())
+
+# ---------------------------------------------------------------
+
+# TODO: test results as well
+
 def add_years_financepy():
     def f():
         d = Date(1, 1, 2010)
@@ -108,7 +127,42 @@ def add_years_xtenors():
 def test_add_years():
     compare_speeds(add_years_financepy(), add_years_xtenors())
     
+# ---------------------------------------------------------------
 
+def str_kws(**kws):
+    return "_".join([
+        "{}_{}".format(k, v) for k, v in kws.items()
+    ])
+
+def add_xtenor(**kws):
+    def f():
+        d = datetime.date(2010, 1, 1)
+        return xtenors.arithmetic.add(d, **kws)
+    f.__name__ = "add_xtenor_{}".format(str_kws(**kws))
+    return f
+
+def add_xtenor_C(**kws):
+    def f():
+        d = datetime.date(2010, 1, 1)
+        return xtenors.arithmetic.add_C(d, **kws)
+    f.__name__ = "add_xtenor_C_{}".format(str_kws(**kws))
+    return f
+
+def test_add():
+    its = dict(iters=10 ** 7)
+
+    kws=dict(years=3)
+    compare_speeds(add_xtenor(**kws), add_xtenor_C(**kws), **its)
+    
+    kws=dict(years=3, months =3)
+    compare_speeds(add_xtenor(**kws), add_xtenor_C(**kws), **its)
+    
+    kws=dict(years=-2, months=1)
+    compare_speeds(add_xtenor(**kws), add_xtenor_C(**kws), **its)
+    
+    kws=dict(years=2, months=-3)
+    compare_speeds(add_xtenor(**kws), add_xtenor_C(**kws), **its)
+    
 # ---------------------------------------------------------------
 
 # round(answer[0], 4) == 0.3889
@@ -124,20 +178,14 @@ def year_frac_30_360_bond_financepy():
     return f 
 
 def year_frac_30_360_bond_xtenors():
-    # flags=xt.Flags().set(
-    #     xtenors.conventions.Day_Count.N_30_360_BOND,
-    #     xtenors.conventions.Day_Count_Factor.N_360,
-    # )
     def f():
         start = datetime.date(2019, 1, 1)
         end = datetime.date(2019, 5, 21)
-        return xtenors.day_factor(
+        return xtenors.day_factor_C(
             start,
             end,
-            freq=1.,
             count=xtenors.conventions.Day_Count.N_30_360_BOND,
-            factor=xtenors.conventions.Day_Count_Factor.N_360,
-            # flags=flags,
+            factor=xtenors.conventions.Day_Count_Factor.N_30_360,
         )
     f.__name__ = "year_frac_30_360_bond_xtenors"
     return f

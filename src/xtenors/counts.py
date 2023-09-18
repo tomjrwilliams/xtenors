@@ -25,6 +25,18 @@ from . import calendars
 from . import arithmetic
 from . import adjustments
 
+
+# ---------------------------------------------------------------
+
+yymmdd = dict(
+    y1=cython.int,
+    y2=cython.int,
+    m1=cython.int,
+    m2=cython.int,
+    d1=cython.int,
+    d2=cython.int,
+)
+
 # ---------------------------------------------------------------
 
 
@@ -36,18 +48,10 @@ def _ndays_february(y):
 def _is_leap_year(y):
     return _ndays_february(y) == 29
 
-# no speed improvement :(
-# @cython.cfunc
-# @cython.returns(cython.int)
-# @cython.locals(
-#     y1=cython.int,
-#     y2=cython.int,
-#     m1=cython.int,
-#     m2=cython.int,
-#     d1=cython.int,
-#     d2=cython.int,
-# )
-def pack_30_360(y1, y2, m1, m2, d1, d2):
+@cython.cfunc
+@cython.returns(cython.int)
+@cython.locals(**yymmdd)
+def pack_30_360(y1, m1, d1, y2, m2, d2):
     return (
         (d2 - d1)
         + (360 * (y2 - y1))
@@ -56,19 +60,24 @@ def pack_30_360(y1, y2, m1, m2, d1, d2):
 
 # ---------------------------------------------------------------
 
-# TODO: try out passing the feb, etc. 
-# unpacked y, m, d into the below
-
-# and then implementing them in cython
-
-# could define a CDate struct with the three ints
-# and pass those around instead?
-
 def day_count_simple(ddt1, ddt2):
     return (ddt2 - ddt1).days
 
 def day_count_n_actual(ddt1, ddt2):
     return (ddt2 - ddt1).days
+
+# ----------------
+
+@cython.cfunc
+@cython.returns(cython.int)
+@cython.locals(**yymmdd)
+def day_count_n_30_360_bond_C(y1, m1, d1, y2, m2, d2):
+
+    d1 = min((d1, 30))
+    if d1 == 30:
+        d2 = min((d2, 30))
+
+    return pack_30_360(y1, m1, d1, y2, m2, d2)
 
 def day_count_n_30_360_bond(ddt1, ddt2):
     y1, m1, d1 = unpack_date(ddt1)
@@ -78,13 +87,34 @@ def day_count_n_30_360_bond(ddt1, ddt2):
     if d1 > 29:
         d2 = min((d2, 30))
 
-    return pack_30_360(y1, y2, m1, m2, d1, d2)
+    return pack_30_360(y1, m1, d1, y2, m2, d2)
+
+# ----------------
+
+@cython.cfunc
+@cython.returns(cython.int)
+@cython.locals(**yymmdd, feb1 = cython.int, feb2=cython.int)
+def day_count_n_30_360_US_C(
+    y1, m1, d1, y2, m2, d2, feb1, feb2
+):
+    if d1 == feb1 and d2 == feb2:
+        d2 = 30
+    
+    if d1 == feb1:
+        d1 = 30
+
+    if d2 > 30 and d1 > 29:
+        d2 = 30
+    
+    d1 = min((31, 30))
+    
+    return pack_30_360(y1, m1, d1, y2, m2, d2)
 
 def day_count_n_30_360_US(ddt1, ddt2):
     y1, m1, d1 = unpack_date(ddt1)
     y2, m2, d2 = unpack_date(ddt2)
     
-    d1_eo_feb = d1 == _ndays_february(y2)
+    d1_eo_feb = d1 == _ndays_february(y1)
     d2_eo_feb = d2 == _ndays_february(y2)
 
     if d1_eo_feb and d2_eo_feb:
@@ -98,7 +128,23 @@ def day_count_n_30_360_US(ddt1, ddt2):
     
     d1 = min((31, 30))
     
-    return pack_30_360(y1, y2, m1, m2, d1, d2)
+    return pack_30_360(y1, m1, d1, y2, m2, d2)
+
+# ----------------
+
+
+@cython.cfunc
+@cython.returns(cython.int)
+@cython.locals(**yymmdd)
+def day_count_n_30E_360_C(
+    y1, m1, d1, y2, m2, d2,
+):
+
+    d1 = min((d1, 30))
+    d2 = min((d2, 30))
+    
+    return pack_30_360(y1, m1, d1, y2, m2, d2)
+    
 
 def day_count_n_30E_360(ddt1, ddt2):
     y1, m1, d1 = unpack_date(ddt1)
@@ -107,7 +153,29 @@ def day_count_n_30E_360(ddt1, ddt2):
     d1 = min((d1, 30))
     d2 = min((d2, 30))
     
-    return pack_30_360(y1, y2, m1, m2, d1, d2)
+    return pack_30_360(y1, m1, d1, y2, m2, d2)
+
+# ----------------
+
+
+@cython.cfunc
+@cython.returns(cython.int)
+@cython.locals(**yymmdd, feb1 = cython.int, feb2 = cython.int)
+def day_count_n_30E_360_ISDA_C(
+    y1, m1, d1, y2, m2, d2, feb1, feb2
+):
+
+    d1 = min((d1, 30))
+    d2 = min((d2, 30))
+
+    if m1 == 2 and d1 == feb1:
+        d1 = 30
+
+    # if d2 is not maturity date?
+    if m2 == 2 and d2 == feb2:
+        d2 = 30
+    
+    return pack_30_360(y1, m1, d1, y2, m2, d2)
 
 def day_count_n_30E_360_ISDA(ddt1, ddt2):
     y1, m1, d1 = unpack_date(ddt1)
@@ -123,7 +191,24 @@ def day_count_n_30E_360_ISDA(ddt1, ddt2):
     if m2 == 2 and d2 == _ndays_february(y2):
         d2 = 30
     
-    return pack_30_360(y1, y2, m1, m2, d1, d2)
+    return pack_30_360(y1, m1, d1, y2, m2, d2)
+
+# ----------------
+
+
+@cython.cfunc
+@cython.returns(cython.int)
+@cython.locals(**yymmdd)
+def day_count_n_30E_plus_360_C(
+    y1, m1, d1, y2, m2, d2,
+):
+
+    d1 = min((d1, 30))
+    if d2 == 31:
+        m2 += 1
+        d2 = 1
+    
+    return pack_30_360(y1, m1, d1, y2, m2, d2)
 
 def day_count_n_30E_plus_360(ddt1, ddt2):
     y1, m1, d1 = unpack_date(ddt1)
@@ -134,12 +219,23 @@ def day_count_n_30E_plus_360(ddt1, ddt2):
         m2 += 1
         d2 = 1
     
-    return pack_30_360(y1, y2, m1, m2, d1, d2)
+    return pack_30_360(y1, m1, d1, y2, m2, d2)
 
 def day_count_n_1_1(ddt1, ddt2):
     raise NotImplementedError
 
 # ---------------------------------------------------------------
+
+day_count_funcs_C = xt.iTuple([
+    # day_count_simple,
+    # day_count_n_actual,
+    day_count_n_30_360_bond_C,
+    day_count_n_30_360_US_C,
+    day_count_n_30E_360_C,
+    day_count_n_30E_360_ISDA_C,
+    day_count_n_30E_plus_360_C,
+    # day_count_n_1_1,
+])
 
 day_count_funcs = xt.iTuple([
     day_count_simple,
@@ -171,6 +267,41 @@ assert (
 
 # ---------------------------------------------------------------
 
+def day_count_C(ddt1, ddt2, count=None, flags = None):
+    """
+    
+    """
+    if count is conventions.Day_Count.N_30_360_BOND:
+        return day_count_n_30_360_bond_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+        )
+    if count is conventions.Day_Count.N_30_360_US:
+        return day_count_n_30_360_US_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+            _ndays_february(ddt1.year),
+            _ndays_february(ddt2.year),
+        )
+    if count is conventions.Day_Count.N_30E_360:
+        return day_count_n_30E_360_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+        )
+    if count is conventions.Day_Count.N_30E_360_ISDA:
+        return day_count_n_30E_360_ISDA_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+            _ndays_february(ddt1.year),
+            _ndays_february(ddt2.year),
+        )
+    if count is conventions.Day_Count.N_30E_PLUS_360:
+        return day_count_n_30E_plus_360_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+        )
+    assert False
+    
 def day_count(ddt1, ddt2, count=None, flags = None):
     """
     
@@ -182,7 +313,7 @@ def day_count(ddt1, ddt2, count=None, flags = None):
 
 # ---------------------------------------------------------------
 
-def day_factor_n_360(f_count, ddt1, ddt2):
+def day_factor_n_30_360(f_count, ddt1, ddt2):
     dc = f_count(ddt1, ddt2)
     return dc / 360
 
@@ -306,7 +437,7 @@ def day_factor_n_1_1(f_count, ddt1, ddt2):
 # ---------------------------------------------------------------
 
 day_factor_funcs = xt.iTuple([
-    day_factor_n_360,
+    day_factor_n_30_360,
     day_factor_actual_365_f,
     day_factor_actual_360,
     day_factor_actual_364,
@@ -339,6 +470,49 @@ assert (
 # ddt1 = starting date for accrual (last coupon date before ddt2)
 # ddt2 = date through which interest accured. for bonds=settlement
 # ddt3 = next coupon date, maturity date if no more interim payments, for regular coupon periods ddt2 == ddt3
+
+def day_factor_C(
+    ddt1,
+    ddt2,
+    ddt3 = None,
+    freq = None,
+    # flags = None,
+    count=None,
+    factor=None,
+    iterator: typing.Optional[iteration.Iterator] = None,
+):
+    if factor is conventions.Day_Count_Factor.N_30_360:
+        if count is conventions.Day_Count.N_30_360_BOND:
+            return day_count_n_30_360_bond_C(
+                *unpack_date(ddt1),
+                *unpack_date(ddt2),
+            ) / 360
+        if count is conventions.Day_Count.N_30_360_US:
+            return day_count_n_30_360_US_C(
+                *unpack_date(ddt1),
+                *unpack_date(ddt2),
+                _ndays_february(ddt1.year),
+                _ndays_february(ddt2.year),
+            ) / 360
+        if count is conventions.Day_Count.N_30E_360:
+            return day_count_n_30E_360_C(
+                *unpack_date(ddt1),
+                *unpack_date(ddt2),
+            ) / 360
+        if count is conventions.Day_Count.N_30E_360_ISDA:
+            return day_count_n_30E_360_ISDA_C(
+                *unpack_date(ddt1),
+                *unpack_date(ddt2),
+                _ndays_february(ddt1.year),
+                _ndays_february(ddt2.year),
+            ) / 360
+        if count is conventions.Day_Count.N_30E_PLUS_360:
+            return day_count_n_30E_plus_360_C(
+                *unpack_date(ddt1),
+                *unpack_date(ddt2),
+            ) / 360
+    
+    assert False
 
 def day_factor(
     ddt1,
@@ -376,7 +550,7 @@ def day_factor(
 
     elif factor is conventions.Day_Count_Factor.ACTUAL_ACTUAL_AFB:
         assert iterator is not None, iterator
-        args = (iterator, flags,)
+        args = (iterator,)
     else:
         args = ()
 

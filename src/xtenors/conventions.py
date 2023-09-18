@@ -83,7 +83,7 @@ DAY_COUNTS = xt.iTuple([
 Day_Count = enum.Enum("Day_Count", DAY_COUNTS)
 
 DAY_COUNT_FACTORS = xt.iTuple([
-    "N_360",
+    "N_30_360",
     "ACTUAL_365_F",
     "ACTUAL_360",
     "ACTUAL_364",
