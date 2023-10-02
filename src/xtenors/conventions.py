@@ -2,48 +2,8 @@
 from __future__ import annotations
 
 import enum
-import contextlib
-
-import typing
-
-import operator
-import itertools
-import functools
-import datetime
 
 import xtuples as xt
-
-from .dates import *
-from .units import *
-
-# ---------------------------------------------------------------
-
-manager = xt.Flags()
-
-def get(*enum_types):
-    """
-    >>> get(Overflow)
-    >>> _ = set(Overflow.NEXT)
-    >>> get(Overflow)
-    <Overflow.NEXT: 1>
-    >>> with context(Overflow.PREV) as overflow:
-    ...     print(get(Overflow))
-    Overflow.PREV
-    >>> get(Overflow)
-    <Overflow.NEXT: 1>
-    >>> get(Overflow, Format)
-    iTuple(<Overflow.NEXT: 1>, None)
-    >>> _ = set(Format.ISO)
-    >>> get(Overflow, Format)
-    iTuple(<Overflow.NEXT: 1>, <Format.ISO: 0>)
-    """
-    return manager.get(*enum_types)
-
-def set(*enum_instances):
-    return manager.set(*enum_instances)
-
-def context(*enum_instances):
-    return manager.context(*enum_instances)
 
 # ---------------------------------------------------------------
 
@@ -67,29 +27,6 @@ class Modified(enum.Enum):
 
 class Format(enum.Enum):
     ISO = 0
-    
-# ---------------------------------------------------------------
-
-DAY_COUNTS = xt.iTuple([
-    "SIMPLE",
-
-    "ACTUAL_365_F",
-    "ACTUAL_360",
-    "ACTUAL_364",
-    "ACTUAL_ACTUAL_ICMA",
-    "ACTUAL_365_L",
-    "ACTUAL_ACTUAL_ISDA",
-    "ACTUAL_ACTUAL_AFB",
-
-    "N_30_360_BOND",
-    "N_30_360_US",
-    "N_30E_360",
-    "N_30E_360_ISDA",
-    "N_30E_PLUS_360",
-
-    "N_1_1",
-])
-Day_Count = enum.Enum("Day_Count", DAY_COUNTS)
 
 # ---------------------------------------------------------------
 

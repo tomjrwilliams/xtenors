@@ -45,12 +45,12 @@ def parse_C(s):
     elif unit == 'M':
     # elif unit == 77:
         return (0, v, 0, 0)
-    elif unit == 'W':
-    # elif unit == 87:
-        return (0, 0, v, 0)
     elif unit == 'D':
     # elif unit == 68:
         return (0, 0, 0, v)
+    elif unit == 'W':
+    # elif unit == 87:
+        return (0, 0, v, 0)
     else:
         assert False, (unit, v)
 
@@ -76,13 +76,13 @@ class Tenor(typing.NamedTuple):
         unit = s[-1]
         v = int(s[:-1])
         if unit == 'Y':
-            return Tenor(v, 0, 0, 0, overflow=overflow)
+            return Tenor(Y=v, overflow=overflow)
         elif unit == 'M':
-            return Tenor(0, v, 0, 0, overflow=overflow)
-        elif unit == 'W':
-            return Tenor(0, 0, v, 0, overflow=overflow)
+            return Tenor(M=v, overflow=overflow)
         elif unit == 'D':
-            return Tenor(0, 0, 0, v, overflow=overflow)
+            return Tenor(D=v, overflow=overflow)
+        elif unit == 'W':
+            return Tenor(W=v, overflow=overflow)
         else:
             assert False, (unit, v)
 
