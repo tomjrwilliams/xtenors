@@ -18,7 +18,7 @@ from .dates import *
 from .units import *
 
 from . import conventions
-from . import iteration
+from . import iterators
 from . import calendars
 
 # ---------------------------------------------------------------

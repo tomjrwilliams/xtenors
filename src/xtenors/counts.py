@@ -20,7 +20,7 @@ from .dates import *
 from .units import *
 
 from . import conventions
-from . import iteration
+from . import iterators
 from . import calendars
 from . import arithmetic
 from . import adjustments
@@ -226,123 +226,36 @@ def day_count_n_1_1(ddt1, ddt2):
 
 # ---------------------------------------------------------------
 
-day_count_funcs_C = xt.iTuple([
-    # day_count_simple,
-    # day_count_n_actual,
-    day_count_n_30_360_bond_C,
-    day_count_n_30_360_US_C,
-    day_count_n_30E_360_C,
-    day_count_n_30E_360_ISDA_C,
-    day_count_n_30E_plus_360_C,
-    # day_count_n_1_1,
-])
-
-day_count_funcs = xt.iTuple([
-    day_count_simple,
-    day_count_n_actual,
-    day_count_n_30_360_bond,
-    day_count_n_30_360_US,
-    day_count_n_30E_360,
-    day_count_n_30E_360_ISDA,
-    day_count_n_30E_plus_360,
-    day_count_n_1_1,
-])
-
-assert (
-    xt.iTuple(conventions.Day_Count.__members__.items())
-    .zip(
-        day_count_funcs.map(lambda f: f.__name__),
-        xt.iTuple.range(day_count_funcs.len()),
-    )
-    .all(lambda kv, f_name, i: (
-        f_name.lower() == "day_count_{}".format(kv[0].lower()) 
-        and i == kv[1].value -1
-    ), star = True)
-), dict(
-    keys=xt.iTuple(conventions.Day_Count.__members__.keys()),
-    values=xt.iTuple(conventions.Day_Count.__members__.values()),
-    irange=xt.iTuple.range(day_count_funcs.len()),
-    funcs=day_count_funcs.map(lambda f: f.__name__),
-)
-
-# ---------------------------------------------------------------
-
-def day_count_C(ddt1, ddt2, count=None, flags = None):
-    """
-    
-    """
-    if count is conventions.Day_Count.N_30_360_BOND:
-        return day_count_n_30_360_bond_C(
-            *unpack_date(ddt1),
-            *unpack_date(ddt2),
-        )
-    if count is conventions.Day_Count.N_30_360_US:
-        return day_count_n_30_360_US_C(
-            *unpack_date(ddt1),
-            *unpack_date(ddt2),
-            _ndays_february(ddt1.year),
-            _ndays_february(ddt2.year),
-        )
-    if count is conventions.Day_Count.N_30E_360:
-        return day_count_n_30E_360_C(
-            *unpack_date(ddt1),
-            *unpack_date(ddt2),
-        )
-    if count is conventions.Day_Count.N_30E_360_ISDA:
-        return day_count_n_30E_360_ISDA_C(
-            *unpack_date(ddt1),
-            *unpack_date(ddt2),
-            _ndays_february(ddt1.year),
-            _ndays_february(ddt2.year),
-        )
-    if count is conventions.Day_Count.N_30E_PLUS_360:
-        return day_count_n_30E_plus_360_C(
-            *unpack_date(ddt1),
-            *unpack_date(ddt2),
-        )
-    assert False
-    
-def day_count(ddt1, ddt2, count=None, flags = None):
-    """
-    
-    """
-    # if flags is None:
-    #     flags = conventions
-    # count = flags.get(conventions.Day_Count)
-    return day_count_funcs[count.value - 1](ddt1, ddt2)
-
-# ---------------------------------------------------------------
-
-def day_factor_n_30_360(f_count, ddt1, ddt2):
-    dc = f_count(ddt1, ddt2)
+def day_factor_n_30_360(ddt1, ddt2):
+    dc = day_count_n_actual(ddt1, ddt2)
     return dc / 360
 
-def day_factor_actual_365_f(f_count, ddt1, ddt2):
-    dc = f_count(ddt1, ddt2)
+def day_factor_actual_365_f(ddt1, ddt2):
+    dc = day_count_n_actual(ddt1, ddt2)
     return dc / 365
 
-def day_factor_actual_360(f_count, ddt1, ddt2):
-    dc = f_count(ddt1, ddt2)
+def day_factor_actual_360(ddt1, ddt2):
+    dc = day_count_n_actual(ddt1, ddt2)
     return dc / 360
 
-def day_factor_actual_364(f_count, ddt1, ddt2):
-    dc = f_count(ddt1, ddt2)
+def day_factor_actual_364(ddt1, ddt2):
+    dc = day_count_n_actual(ddt1, ddt2)
     return dc / 364
 
 def day_factor_actual_actual_icma(
-    f_count,
+    day_count_n_actual,
     ddt1,
     ddt2,
     ddt3,
     freq,
 ):
-    dc1 = f_count(ddt1, ddt2)
-    dc2 = f_count(ddt1, ddt3)
+    dc1 = day_count_n_actual(ddt1, ddt2)
+    dc2 = day_count_n_actual(ddt1, ddt3)
     return dc1 / (freq * dc2)
 
-def day_factor_actual_365_l(f_count, ddt1, ddt2, freq):
+def day_factor_actual_365_l(ddt1, ddt2, freq):
 
-    dc = f_count(ddt1, ddt2)
+    dc = day_count_n_actual(ddt1, ddt2)
 
     min_ddt = min((ddt1, ddt2))
     max_ddt = max((ddt1, ddt2))
@@ -359,9 +272,9 @@ def day_factor_actual_365_l(f_count, ddt1, ddt2, freq):
     
     return dc / div
 
-def day_factor_actual_actual_isda(f_count, ddt1, ddt2):
+def day_factor_actual_actual_isda(ddt1, ddt2):
 
-    dc = f_count(ddt1, ddt2)
+    dc = day_count_n_actual(ddt1, ddt2)
 
     min_ddt = min((ddt1, ddt2))
     max_ddt = max((ddt1, ddt2))
@@ -373,10 +286,10 @@ def day_factor_actual_actual_isda(f_count, ddt1, ddt2):
     
     sign = 1 if ddt1 < ddt2 else -1
 
-    left_stub = f_count(min_ddt, datetime.date(
+    left_stub = day_count_n_actual(min_ddt, datetime.date(
         min_ddt.year + 1, 1, 1
     ))
-    right_stub = f_count(datetime.date(
+    right_stub = day_count_n_actual(datetime.date(
         max_ddt.year - 1, 12, 31
     ), max_ddt)
 
@@ -394,14 +307,14 @@ def day_factor_actual_actual_isda(f_count, ddt1, ddt2):
 
 # TODO: check should adjust
 def day_factor_actual_actual_afb(
-    f_count,
+    day_count_n_actual,
     ddt1,
     ddt2,
     iterator,
     flags,
 ):
 
-    dc = f_count(ddt1, ddt2)
+    dc = day_count_n_actual(ddt1, ddt2)
 
     min_ddt = min((ddt1, ddt2))
     max_ddt = max((ddt1, ddt2))
@@ -421,7 +334,7 @@ def day_factor_actual_actual_afb(
         flags=flags,
     )
 
-    dc_adj = f_count(ddt1, ddt_adj)
+    dc_adj = day_count_n_actual(ddt1, ddt_adj)
 
     return sign * sum((
         n_years,
@@ -430,40 +343,111 @@ def day_factor_actual_actual_afb(
         )
     ))
 
-def day_factor_n_1_1(f_count, ddt1, ddt2):
+def day_factor_n_1_1(ddt1, ddt2):
     raise NotImplementedError
-
 
 # ---------------------------------------------------------------
 
-day_factor_funcs = xt.iTuple([
-    day_factor_n_30_360,
-    day_factor_actual_365_f,
-    day_factor_actual_360,
-    day_factor_actual_364,
-    day_factor_actual_actual_icma,
-    day_factor_actual_365_l,
-    day_factor_actual_actual_isda,
-    day_factor_actual_actual_afb,
-    day_factor_n_1_1,
-])
+def day_count_not_n_30_360(ddt1, ddt2, count):
+    
+    if count is conventions.Day_Count.ACTUAL_365_F:
+        return day_count_n_actual(ddt1, ddt2)
 
-assert (
-    xt.iTuple(conventions.Day_Count_Factor.__members__.items())
-    .zip(
-        day_factor_funcs.map(lambda f: f.__name__),
-        xt.iTuple.range(day_factor_funcs.len()),
-    )
-    .all(lambda kv, f_name, i: (
-        f_name.lower() == "day_factor_{}".format(kv[0].lower()) 
-        and i == kv[1].value -1
-    ), star = True)
-), dict(
-    keys=xt.iTuple(conventions.Day_Count_Factor.__members__.keys()),
-    values=xt.iTuple(conventions.Day_Count_Factor.__members__.values()),
-    irange=xt.iTuple.range(day_factor_funcs.len()),
-    funcs=day_factor_funcs.map(lambda f: f.__name__),
-)
+    elif count is conventions.Day_Count.ACTUAL_360:
+        return day_count_n_actual(ddt1, ddt2)
+
+    elif count is conventions.Day_Count.ACTUAL_364:
+        return day_count_n_actual(ddt1, ddt2)
+
+    elif count is conventions.Day_Count.ACTUAL_ACTUAL_ICMA:
+        return day_count_n_actual(ddt1, ddt2)
+
+    elif count is conventions.Day_Count.ACTUAL_365_L:
+        return day_count_n_actual(ddt1, ddt2)
+
+    elif count is conventions.Day_Count.ACTUAL_ACTUAL_ISDA:
+        return day_count_n_actual(ddt1, ddt2)
+
+    elif count is conventions.Day_Count.ACTUAL_ACTUAL_AFB:
+        return day_count_n_actual(ddt1, ddt2)
+
+    assert False, count
+
+def day_count_C(ddt1, ddt2, count=None):
+    """
+    
+    """
+    if count is conventions.Day_Count.N_30_360_BOND:
+        return day_count_n_30_360_bond_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+        )
+
+    elif count is conventions.Day_Count.N_30_360_US:
+        return day_count_n_30_360_US_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+            _ndays_february(ddt1.year),
+            _ndays_february(ddt2.year),
+        )
+
+    elif count is conventions.Day_Count.N_30E_360:
+        return day_count_n_30E_360_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+        )
+
+    elif count is conventions.Day_Count.N_30E_360_ISDA:
+        return day_count_n_30E_360_ISDA_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+            _ndays_february(ddt1.year),
+            _ndays_february(ddt2.year),
+        )
+
+    elif count is conventions.Day_Count.N_30E_PLUS_360:
+        return day_count_n_30E_plus_360_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+        )
+    
+    return day_count_not_n_30_360(ddt1, ddt2, count)
+    
+def day_count_py(ddt1, ddt2, count=None):
+    """
+    
+    """
+    if count is conventions.Day_Count.N_30_360_BOND:
+        return day_count_n_30_360_bond(
+            ddt1,
+            ddt2,
+        )
+    elif count is conventions.Day_Count.N_30_360_US:
+        return day_count_n_30_360_US(
+            ddt1,
+            ddt2,
+            _ndays_february(ddt1.year),
+            _ndays_february(ddt2.year),
+        )
+    elif count is conventions.Day_Count.N_30E_360:
+        return day_count_n_30E_360(
+            ddt1,
+            ddt2,
+        )
+    elif count is conventions.Day_Count.N_30E_360_ISDA:
+        return day_count_n_30E_360_ISDA(
+            ddt1,
+            ddt2,
+            _ndays_february(ddt1.year),
+            _ndays_february(ddt2.year),
+        )
+    elif count is conventions.Day_Count.N_30E_PLUS_360:
+        return day_count_n_30E_plus_360(
+            ddt1,
+            ddt2,
+        )
+    
+    return day_count_not_n_30_360(ddt1, ddt2, count)
 
 # ---------------------------------------------------------------
 
@@ -471,58 +455,101 @@ assert (
 # ddt2 = date through which interest accured. for bonds=settlement
 # ddt3 = next coupon date, maturity date if no more interim payments, for regular coupon periods ddt2 == ddt3
 
+def day_factor_not_n_30_360(
+    ddt1,
+    ddt2,
+    ddt3 = None,
+    freq = None,
+    # flags = None,
+    count=None,
+    iterator: typing.Optional[iterators. Iterator] = None,
+):
+    if count is conventions.Day_Count.ACTUAL_365_F:
+        return day_factor_actual_365_f(ddt1, ddt2)
+
+    elif count is conventions.Day_Count.ACTUAL_360:
+        return day_factor_actual_360(ddt1, ddt2)
+
+    elif count is conventions.Day_Count.ACTUAL_364:
+        return day_factor_actual_364(ddt1, ddt2)
+
+    elif count is conventions.Day_Count.ACTUAL_ACTUAL_ICMA:
+        assert ddt3 is not None, ddt3
+        assert freq is not None, freq
+        return day_factor_actual_actual_icma(ddt1, ddt2, ddt3, freq)
+
+    elif count is conventions.Day_Count.ACTUAL_365_L:
+        assert freq is not None, freq
+        return day_factor_actual_365_l(ddt1, ddt2, freq)
+
+    elif count is conventions.Day_Count.ACTUAL_ACTUAL_ISDA:
+        return day_factor_actual_actual_isda(ddt1, ddt2)
+
+    elif count is conventions.Day_Count.ACTUAL_ACTUAL_AFB:
+        assert iterator is not None, iterator
+        return day_factor_actual_actual_afb(ddt1, ddt2, iterator)
+
+    else:
+        assert False, count
+
 def day_factor_C(
     ddt1,
     ddt2,
     ddt3 = None,
     freq = None,
-    # flags = None,
     count=None,
-    factor=None,
-    iterator: typing.Optional[iteration.Iterator] = None,
+    iterator: typing.Optional[iterators. Iterator] = None,
 ):
-    if factor is conventions.Day_Count_Factor.N_30_360:
-        if count is conventions.Day_Count.N_30_360_BOND:
-            return day_count_n_30_360_bond_C(
-                *unpack_date(ddt1),
-                *unpack_date(ddt2),
-            ) / 360
-        if count is conventions.Day_Count.N_30_360_US:
-            return day_count_n_30_360_US_C(
-                *unpack_date(ddt1),
-                *unpack_date(ddt2),
-                _ndays_february(ddt1.year),
-                _ndays_february(ddt2.year),
-            ) / 360
-        if count is conventions.Day_Count.N_30E_360:
-            return day_count_n_30E_360_C(
-                *unpack_date(ddt1),
-                *unpack_date(ddt2),
-            ) / 360
-        if count is conventions.Day_Count.N_30E_360_ISDA:
-            return day_count_n_30E_360_ISDA_C(
-                *unpack_date(ddt1),
-                *unpack_date(ddt2),
-                _ndays_february(ddt1.year),
-                _ndays_february(ddt2.year),
-            ) / 360
-        if count is conventions.Day_Count.N_30E_PLUS_360:
-            return day_count_n_30E_plus_360_C(
-                *unpack_date(ddt1),
-                *unpack_date(ddt2),
-            ) / 360
-    
-    assert False
+    if count is conventions.Day_Count.N_30_360_BOND:
+        return day_count_n_30_360_bond_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+        ) / 360
 
-def day_factor(
+    elif count is conventions.Day_Count.N_30_360_US:
+        return day_count_n_30_360_US_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+            _ndays_february(ddt1.year),
+            _ndays_february(ddt2.year),
+        ) / 360
+
+    elif count is conventions.Day_Count.N_30E_360:
+        return day_count_n_30E_360_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+        ) / 360
+
+    elif count is conventions.Day_Count.N_30E_360_ISDA:
+        return day_count_n_30E_360_ISDA_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+            _ndays_february(ddt1.year),
+            _ndays_february(ddt2.year),
+        ) / 360
+
+    elif count is conventions.Day_Count.N_30E_PLUS_360:
+        return day_count_n_30E_plus_360_C(
+            *unpack_date(ddt1),
+            *unpack_date(ddt2),
+        ) / 360
+
+    return day_factor_not_n_30_360(
+        ddt1,
+        ddt2,
+        ddt3=ddt3,
+        freq=freq,
+        count=count,
+        iterator=iterator,
+    )
+
+def day_factor_py(
     ddt1,
     ddt2,
     ddt3 = None,
     freq = None,
-    # flags = None,
     count=None,
-    factor=None,
-    iterator: typing.Optional[iteration.Iterator] = None,
+    iterator: typing.Optional[iterators. Iterator] = None,
 ):
     """
     >>> ddt1 = datetime.date(2020, 2, 1)
@@ -530,124 +557,54 @@ def day_factor(
     >>> ddt3 = datetime.date(2020, 3, 1)
     >>> freq = 1
     """
-    # if flags is None:
-    #     flags = conventions
+    if count is conventions.Day_Count.N_30_360_BOND:
+        return day_count_n_30_360_bond(
+            ddt1,
+            ddt2,
+        ) / 360
 
-    # count = flags.get(conventions.Day_Count)
-    # factor = flags.get(conventions.Day_Count_Factor)
+    elif count is conventions.Day_Count.N_30_360_US:
+        return day_count_n_30_360_US(
+            ddt1,
+            ddt2,
+            _ndays_february(ddt1.year),
+            _ndays_february(ddt2.year),
+        ) / 360
 
-    f_count = day_count_funcs[count.value - 1]
-    f_factor = day_factor_funcs[factor.value - 1]
+    elif count is conventions.Day_Count.N_30E_360:
+        return day_count_n_30E_360(
+            ddt1,
+            ddt2,
+        ) / 360
 
-    if factor is conventions.Day_Count_Factor.ACTUAL_ACTUAL_ICMA:
-        assert ddt3 is not None, ddt3
-        assert freq is not None, freq
-        args = (ddt3, freq,)
+    elif count is conventions.Day_Count.N_30E_360_ISDA:
+        return day_count_n_30E_360_ISDA(
+            ddt1,
+            ddt2,
+            _ndays_february(ddt1.year),
+            _ndays_february(ddt2.year),
+        ) / 360
 
-    elif factor is conventions.Day_Count_Factor.ACTUAL_365_L:
-        assert freq is not None, freq
-        args = (freq,)
+    elif count is conventions.Day_Count.N_30E_PLUS_360:
+        return day_count_n_30E_plus_360(
+            ddt1,
+            ddt2,
+        ) / 360
 
-    elif factor is conventions.Day_Count_Factor.ACTUAL_ACTUAL_AFB:
-        assert iterator is not None, iterator
-        args = (iterator,)
-    else:
-        args = ()
-
-    return f_factor(f_count, ddt1, ddt2, *args)
+    return day_factor_not_n_30_360(
+        ddt1,
+        ddt2,
+        ddt3=ddt3,
+        freq=freq,
+        count=count,
+        iterator=iterator,
+    )
 
 # ---------------------------------------------------------------
+
+day_count = day_count_C
+day_factor = day_factor_C
 
 # interest = principal * coupon_rate * day_factor
-
-# ---------------------------------------------------------------
-
-# https://github.com/domokane/FinancePy/blob/master/tests/test_FinDayCount.py
-
-
-# start = Date(1, 1, 2019)
-# end = Date(21, 5, 2019)
-# finFreq = FrequencyTypes.ANNUAL
-
-
-# def test_year_frace_THIRTY_360_BOND():
-#     day_count_type = DayCountTypes.THIRTY_360_BOND
-#     day_count = DayCount(day_count_type)
-#     answer = day_count.year_frac(start, end, end, finFreq)
-
-#     assert round(answer[0], 4) == 0.3889
-
-
-# def test_year_frace_THIRTY_E_360():
-#     day_count_type = DayCountTypes.THIRTY_E_360
-#     day_count = DayCount(day_count_type)
-#     answer = day_count.year_frac(start, end, end, finFreq)
-
-#     assert round(answer[0], 4) == 0.3889
-
-
-# def test_year_frace_THIRTY_E_360_ISDA():
-#     day_count_type = DayCountTypes.THIRTY_E_360_ISDA
-#     day_count = DayCount(day_count_type)
-#     answer = day_count.year_frac(start, end, end, finFreq)
-
-#     assert round(answer[0], 4) == 0.3889
-
-
-# def test_year_frace_THIRTY_E_PLUS_360():
-#     day_count_type = DayCountTypes.THIRTY_E_PLUS_360
-#     day_count = DayCount(day_count_type)
-#     answer = day_count.year_frac(start, end, end, finFreq)
-
-#     assert round(answer[0], 4) == 0.3889
-
-
-# def test_year_frace_ACT_ACT_ISDA():
-#     day_count_type = DayCountTypes.ACT_ACT_ISDA
-#     day_count = DayCount(day_count_type)
-#     answer = day_count.year_frac(start, end, end, finFreq)
-
-#     assert round(answer[0], 4) == 0.3836
-
-
-# def test_year_frace_ACT_ACT_ICMA():
-#     day_count_type = DayCountTypes.ACT_ACT_ICMA
-#     day_count = DayCount(day_count_type)
-#     answer = day_count.year_frac(start, end, end, finFreq)
-
-#     assert round(answer[0], 4) == 1.0000
-
-
-# def test_year_frace_ACT_365F():
-#     day_count_type = DayCountTypes.ACT_365F
-#     day_count = DayCount(day_count_type)
-#     answer = day_count.year_frac(start, end, end, finFreq)
-
-#     assert round(answer[0], 4) == 0.3836
-
-
-# def test_year_frace_ACT_360():
-#     day_count_type = DayCountTypes.ACT_360
-#     day_count = DayCount(day_count_type)
-#     answer = day_count.year_frac(start, end, end, finFreq)
-
-#     assert round(answer[0], 4) == 0.3889
-
-
-# def test_year_frace_ACT_365L():
-#     day_count_type = DayCountTypes.ACT_365L
-#     day_count = DayCount(day_count_type)
-#     answer = day_count.year_frac(start, end, end, finFreq)
-
-#     assert round(answer[0], 4) == 0.3836
-
-
-# def test_year_frace_SIMPLE():
-#     day_count_type = DayCountTypes.SIMPLE
-#     day_count = DayCount(day_count_type)
-#     answer = day_count.year_frac(start, end, end, finFreq)
-
-#     assert round(answer[0], 4) == 0.3836
-
 
 # ---------------------------------------------------------------

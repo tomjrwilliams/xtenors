@@ -19,37 +19,8 @@ from .dates import *
 from .units import *
 
 from . import conventions
-from . import iteration
+from . import iterators
 from . import calendars
-
-
-# ---------------------------------------------------------------
-
-def overflow_date(y, m, d, overflow = None):
-
-    if overflow is None or overflow is conventions.Overflow.ERROR:
-        return datetime.date(y, m, d)
-
-    elif overflow is conventions.Overflow.NEXT:
-        m += 1
-        ys, m = divmod(m - 1, 12)
-        m += 1
-        y += ys
-        return datetime.date(y, m, 1)
-
-    elif overflow is conventions.Overflow.PREV:
-        d_max = calendar.monthrange(y, m)[1]
-        return datetime.date(y, m, d_max)
-
-    assert False, overflow
-
-def pack_date(y, m, d, flags = None):
-    try:
-        return datetime.date(y, m, d)
-    except ValueError as e:
-        if not "day is out of range for month" in str(e):
-            raise e
-        return overflow_date(y, m, d, flags = flags)
 
 # ---------------------------------------------------------------
 
@@ -71,16 +42,14 @@ def add_y_m_C(y, m, years, months):
     _y, m = divmod(m + months - 1, 12)
     return y + years + _y, m + 1
     
+# ---------------------------------------------------------------
+
 @cython.cfunc
 @cython.returns(tuple[cython.int, cython.int, cython.int])
 @cython.locals(
-    **ymd, years=cython.int, months=cython.int, d_max=cython.int
+    **ymd, d_max=cython.int
 )
-def add_y_m_overflow_prev_C(y, m, d, years, months, d_max):
-
-    y, m = add_y_m_C(y, m, years, months)
-    
-    # --
+def overflow_prev_C(y, m, d, d_max):
 
     if d > d_max:
         d = d_max
@@ -90,13 +59,9 @@ def add_y_m_overflow_prev_C(y, m, d, years, months, d_max):
 @cython.cfunc
 @cython.returns(tuple[cython.int, cython.int, cython.int])
 @cython.locals(
-    **ymd, years=cython.int, months=cython.int, d_max=cython.int
+    **ymd, years=cython.int, d_max=cython.int
 )
-def add_y_m_overflow_next_C(y, m, d, years, months, d_max):
-
-    y, m = add_y_m_C(y, m, years, months)
-    
-    # --
+def overflow_next_C(y, m, d, d_max):
 
     if d > d_max:
         years, m = divmod(m + 1 - 1, 12)
@@ -104,6 +69,18 @@ def add_y_m_overflow_next_C(y, m, d, years, months, d_max):
 
     return y, m, d
 
+# ---------------------------------------------------------------
+
+def overflow_prev_py(y, m, d):
+    d_max = calendar.monthrange(y, m)[1]
+    return datetime.date(y, m, d_max)
+
+def overflow_next_py(y, m, d):
+    m += 1
+    ys, m = divmod(m - 1, 12)
+    m += 1
+    y += ys
+    return datetime.date(y, m, 1)
 
 # ---------------------------------------------------------------
 
@@ -132,6 +109,35 @@ def add_time(
         )
     return ddt
 
+def add_days(
+    ddt,
+    days,
+    iterator=None,
+):
+    if days != 0 and iterator is None:
+        ddt = ddt + datetime.timedelta(days=days)
+        return unpack_date(ddt)
+
+    elif days != 0:
+        iterator, gen = iterator.update(
+            start=(
+                ddt
+                if not isinstance(ddt, datetime.datetime)
+                else ddt.date()
+            ),
+            step=days(1 if days > 0 else -1)
+        )
+        end = xt.iTuple.n_from(gen, days)[-1]
+        return unpack_date(end)
+
+    else:
+        return unpack_date(ddt)
+
+# ---------------------------------------------------------------
+
+def is_error_day_range(e: Exception):
+    return "day is out of range for month" in str(e)
+
 # ---------------------------------------------------------------
 
 def add_py(
@@ -145,7 +151,7 @@ def add_py(
     seconds=0,
     milliseconds=0,
     microseconds=0,
-    iterator: typing.Optional[iteration.Iterator] = None,
+    iterator: typing.Optional[iterators. Iterator] = None,
     overflow=None,
 ):
     """
@@ -170,24 +176,7 @@ def add_py(
 
     days += weeks * 7
 
-    if days != 0 and iterator is None:
-        ddt = ddt + datetime.timedelta(days=days)
-        y, m, d = unpack_date(ddt)
-
-    elif days != 0:
-        iterator, gen = iterator.update(
-            start=(
-                ddt
-                if not isinstance(ddt, datetime.datetime)
-                else ddt.date()
-            ),
-            step=days(1 if days > 0 else -1)
-        )
-        end = xt.iTuple.n_from(gen, days)[-1]
-        y, m, d = unpack_date(end)
-
-    else:
-        y, m, d = unpack_date(ddt)
+    y, m, d = add_days(ddt, days, iterator=iterator)
     
     y += years
     m += months
@@ -197,7 +186,17 @@ def add_py(
     m += 1
     y += years
 
-    dt = pack_date(y, m, d)
+    try:
+        return datetime.date(y, m, d)
+    except Exception as e:
+        if not is_error_day_range(e):
+            raise e
+        elif overflow is conventions.Overflow.NEXT:
+            dt = datetime.date(*overflow_next_py(y, m, d))
+        elif overflow is conventions.Overflow.PREV:
+            dt = datetime.date(*overflow_prev_py(y, m, d))
+        else:
+            raise e
 
     if is_date_strict(ddt):
         return dt
@@ -218,7 +217,7 @@ def add_C(
     seconds=0,
     milliseconds=0,
     microseconds=0,
-    iterator: typing.Optional[iteration.Iterator] = None,
+    iterator: typing.Optional[iterators. Iterator] = None,
     overflow=None,
 ):
     """
@@ -243,52 +242,22 @@ def add_C(
 
     days += weeks * 7
 
-    if days != 0 and iterator is None:
-        ddt = ddt + datetime.timedelta(days=days)
-        y, m, d = unpack_date(ddt)
+    y, m, d = add_days(ddt, days, iterator=iterator)
 
-    elif days != 0:
-        iterator, gen = iterator.update(
-            start=(
-                ddt
-                if not isinstance(ddt, datetime.datetime)
-                else ddt.date()
-            ),
-            step=days(1 if days > 0 else -1)
-        )
-        end = xt.iTuple.n_from(gen, days)[-1]
-        y, m, d = unpack_date(end)
+    y, m = add_y_m_C(y, m, years, months)
 
-    else:
-        y, m, d = unpack_date(ddt)
-
-    if overflow is None:
-        dt = datetime.date(
-            *add_y_m_C(y, m, years, months), d
-        )
-        
-    elif overflow is conventions.Overflow.ERROR:
-        dt = datetime.date(
-            *add_y_m_C(y, m, years, months), d
-        )
-
-    elif overflow is conventions.Overflow.NEXT:
-        d_max = calendar.monthrange(y, m)[1]
-        dt = datetime.date(
-            *add_y_m_overflow_next_C(
-                y, m, d, years, months, d_max
-            )
-        )
-
-    elif overflow is conventions.Overflow.PREV:
-        d_max = calendar.monthrange(y, m)[1]
-        dt = datetime.date(
-            *add_y_m_overflow_prev_C(
-                y, m, d, years, months, d_max
-            )
-        )
-    else:
-        assert False, overflow
+    try:
+        return datetime.date(y, m, d)
+    except Exception as e:
+        if not is_error_day_range(e):
+            raise e
+        elif overflow is conventions.Overflow.NEXT:
+            dt = datetime.date(*overflow_next_C(y, m, d))
+        elif overflow is conventions.Overflow.PREV:
+            d_max = calendar.monthrange(y, m)[1]
+            dt = datetime.date(*overflow_prev_C(y, m, d, d_max))
+        else:
+            raise e
 
     if is_date_strict(ddt):
         return dt
@@ -300,7 +269,7 @@ def add_C(
 
 # ---------------------------------------------------------------
 
-add = add_C
-# add = add_py
+# add = add_C
+add = add_py
 
 # ---------------------------------------------------------------

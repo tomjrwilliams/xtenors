@@ -14,7 +14,7 @@ import xtuples as xt
 from .dates import *
 from .units import *
 
-from . import iteration
+from . import iterators
 
 # ---------------------------------------------------------------
 
@@ -30,7 +30,7 @@ class Calendar(typing.Protocol):
         start: DDT,
         step: datetime.timedelta,
         **kwargs
-    ) -> iteration.Iterator:
+    ) -> iterators. Iterator:
         ...
 
 # ---------------------------------------------------------------
@@ -85,7 +85,7 @@ class Weekday(typing.NamedTuple):
             if f is None
             else lambda ddt: valid(ddt) and f(ddt)
         )
-        return iteration.Iterator(
+        return iterators. Iterator(
             start,
             step,
             **kwargs, 
@@ -146,7 +146,7 @@ class Stateful(typing.NamedTuple):
             if f is None
             else lambda ddt: valid(ddt) and f(ddt)
         )
-        return iteration.Iterator(
+        return iterators. Iterator(
             start,
             step,
             **kwargs, 
@@ -344,7 +344,7 @@ class Manager_Pandas_Market_Calendar(typing.NamedTuple):
                 end_date=end,
             )
         ])
-        _, gen = iteration.Iterator(
+        _, gen = iterators. Iterator(
             start,
             days(1),
             end=end,
@@ -404,7 +404,7 @@ class Manager_Holidays_Country(typing.NamedTuple):
         hols = holidays.country_holidays(
             self.k, subdiv=self.subdiv
         )
-        _, gen = iteration.Iterator(
+        _, gen = iterators. Iterator(
             start,
             days(1),
             end=end,
@@ -459,7 +459,7 @@ class Manager_Holidays_Financial(typing.NamedTuple):
 
     def f_excludes(self, start, end):
         hols = holidays.financial_holidays(self.k)
-        _, gen = iteration.Iterator(
+        _, gen = iterators. Iterator(
             start,
             days(1),
             end=end,

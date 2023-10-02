@@ -19,12 +19,13 @@ from .units import *
 # TODO: rename iteration as iterators for consistency
 
 from . import conventions
-from . import iteration
+from . import iterators
 from . import calendars
 from . import arithmetic
 from . import adjustments
 
 # ---------------------------------------------------------------
+
 
 @cython.cfunc
 @cython.returns(tuple[
@@ -71,7 +72,22 @@ class Tenor(typing.NamedTuple):
     # adjust
 
     @classmethod
-    def parse(cls, s: str, overflow = None) -> Tenor:
+    def parse_py(cls, s: str, overflow = None) -> Tenor:
+        unit = s[-1]
+        v = int(s[:-1])
+        if unit == 'Y':
+            return Tenor(v, 0, 0, 0, overflow=overflow)
+        elif unit == 'M':
+            return Tenor(0, v, 0, 0, overflow=overflow)
+        elif unit == 'W':
+            return Tenor(0, 0, v, 0, overflow=overflow)
+        elif unit == 'D':
+            return Tenor(0, 0, 0, v, overflow=overflow)
+        else:
+            assert False, (unit, v)
+
+    @classmethod
+    def parse_C(cls, s: str, overflow = None) -> Tenor:
         """
         >>> Tenor.parse("1D")
         Tenor(Y=0, M=0, W=0, D=1, overflow=None)
@@ -82,15 +98,14 @@ class Tenor(typing.NamedTuple):
         >>> Tenor.parse("1Y")
         Tenor(Y=1, M=0, W=0, D=0, overflow=None)
         """
-        return cls(*parse_C(s), overflow = overflow)
-        # return cls(
-        #     *parse_C(s.encode("UTF-8")), overflow = overflow
-        # )
+        return Tenor(*parse_C(s), overflow = overflow)
+
+    parse = parse_py
 
     def add(
         self: Tenor,
         ddt: typing.Union[DDT, Tenor],
-        iterator: typing.Optional[iteration.Iterator] = None,
+        iterator: typing.Optional[iterators. Iterator] = None,
         adjust: bool = False,
         overflow=None,
     ):
@@ -109,7 +124,7 @@ class Tenor(typing.NamedTuple):
 def add(
     left: typing.Union[DDT, Tenor],
     right: Tenor,
-    iterator: typing.Optional[iteration.Iterator] = None,
+    iterator: typing.Optional[iterators. Iterator] = None,
     adjust: bool = False,
     overflow=None,
 ):
