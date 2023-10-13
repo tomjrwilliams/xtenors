@@ -9,8 +9,6 @@ import datetime
 
 import xtuples as xt
 
-import cython
-
 # ---------------------------------------------------------------
 
 DDT = typing.Union[datetime.date, datetime.datetime]

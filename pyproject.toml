@@ -20,7 +20,13 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = []
+dependencies = [
+  "xtuples>=2.0.0",
+  "cython",
+  "pandas",
+  "pandas_market_calendars",
+  "holidays",
+]
 
 [project.urls]
 Documentation = "https://tomjrwilliams.github.io/xtenors/"
@@ -34,9 +40,6 @@ path = "src/xtenors/__about__.py"
 dependencies = [
   "coverage[toml]>=6.5",
   "pytest",
-  "pandas",
-  "pandas_market_calendars",
-  "holidays",
 ]
 [tool.hatch.envs.default.scripts]
 test = "pytest --doctest-modules"

@@ -20,9 +20,52 @@ pip install xtenors
 ```
 ## Overview
 
-## Examples
+xtenors provides a number of utilities for working with (financial) calendars, and related tenor operations.
+
+In particular, xtenors exposes:
+
+- xtenors.Iterator:
+
+For example:
+
+```python
+
+```
+
+- xtenors.calendars:
+
+For example:
+
+```python
+
+```
+
+- xtenors.arithmetic:
+
+For example:
+
+```python
+
+```
+
+- xtenors.adjust:
+
+For example:
+
+```python
+
+```
+
+- xtenors.Tenor:
+- xtenors.add:
 
 ## Performance
+
+Benchmarked against:
+
+- Financepy
+
+- ...
 
 ## License
 

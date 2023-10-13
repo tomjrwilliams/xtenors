@@ -29,11 +29,7 @@ from . import calendars
 
 # ---------------------------------------------------------------
 
-def adjust_date_forward(d, first_valid, iterator, flags = None):
-    if flags is None:
-        flags = conventions
-
-    modified = flags.get(conventions.Modified)
+def adjust_date_forward(d, first_valid, iterator, modified = None):
 
     if d.month == first_valid.month:
         return first_valid
@@ -53,11 +49,7 @@ def adjust_date_forward(d, first_valid, iterator, flags = None):
             modified=modified,
         )
 
-def adjust_date_backward(d, first_valid, iterator, flags = None):
-    if flags is None:
-        flags = conventions
-
-    modified = flags.get(conventions.Modified)
+def adjust_date_backward(d, first_valid, iterator, modified = None):
 
     if d.month == first_valid.month:
         return first_valid
@@ -82,12 +74,9 @@ def adjust_date_backward(d, first_valid, iterator, flags = None):
 def adjust(
     ddt,
     iterator,
-    flags = None,
+    roll=None,
+    modified = None,
 ):
-    if flags is None:
-        flags = conventions
-
-    roll = flags.get(conventions.Roll)
 
     d = (
         ddt if not isinstance(ddt, datetime.datetime)
@@ -112,13 +101,13 @@ def adjust(
 
     elif roll is conventions.Roll.PRECEDING:
         res = adjust_date_backward(
-            d, first_valid, iterator, flags=flags
+            d, first_valid, iterator, modified=modified
             #
         )
 
     elif roll is conventions.Roll.FOLLOWING:
         res = adjust_date_forward(
-            d, first_valid, iterator, flags=flags
+            d, first_valid, iterator, modified=modified
             #
         )
 
@@ -126,8 +115,18 @@ def adjust(
         assert False, roll
 
     if isinstance(ddt, datetime.datetime):
-        return datetime.combine(res, ddt.time())
+        return datetime.datetime.combine(res, ddt.time())
 
     return res
+
+# ---------------------------------------------------------------
+
+@xt.nTuple.decorate()
+class Adjustment(typing.NamedTuple):
+
+    iterator: iterators.Iterator
+    overflow: typing.Optional[conventions.Overflow] = None
+    roll: typing.Optional[conventions.Roll] = None
+    modified: typing.Optional[conventions.Modified] = None
 
 # ---------------------------------------------------------------

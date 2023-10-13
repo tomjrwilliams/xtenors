@@ -1,5 +1,6 @@
 
 from __future__ import annotations
+from tkinter.font import nametofont
 
 import typing
 
@@ -15,6 +16,9 @@ from .units import *
 
 # ---------------------------------------------------------------
 
+T = typing.TypeVar("T", bound = DDT)
+
+# ---------------------------------------------------------------
 
 @xt.nTuple.decorate()
 class Iterator(typing.NamedTuple):
@@ -26,6 +30,14 @@ class Iterator(typing.NamedTuple):
     end: typing.Optional[DDT] = None
 
     f: typing.Optional[typing.Callable] = None
+
+    @staticmethod
+    def unpack_accept(bv: tuple[bool, DDT]) -> bool:
+        return bv[0]
+
+    @staticmethod
+    def unpack_value(bv: tuple[bool, DDT]) -> DDT:
+        return bv[1]
 
     def direction(self):
         """
@@ -52,7 +64,10 @@ class Iterator(typing.NamedTuple):
         self = self._replace(**kwargs)
         return self.gen()
 
-    def gen(self):
+    def gen(
+        self: Iterator
+        #
+    ) -> tuple[Iterator, typing.Iterator[tuple[bool, DDT]]]:
         """
         >>> itr, gen = Iterator(year(2020), days(1)).gen()
         >>> xt.iTuple.n_from(gen, 2).mapstar(lambda y, v: v)
@@ -183,37 +198,50 @@ class Iterator(typing.NamedTuple):
         return 
 
     def steps_where(
-        self,
-        where: typing.Optional[typing.Callable] = None,
+        self: Iterator,
+        pipe: typing.Optional[typing.Callable] = None,
+        n: typing.Optional[int] = None,
     ) -> int:
-        _, gen = self.gen()
-        res = xt.iTuple.from_where(gen)
-        return res if where is None else where(res)
+        self, gen = self.gen()
+        res: xt.iTuple[DDT] = xt.iTuple.from_gen(gen, n=n)
+        return res if pipe is None else pipe(res)
 
-    def n_steps_where(self):
-        return self.steps_where(where=lambda it: it.len() - 1)
+    def n_steps_where(self: Iterator) -> int:
+        return self.steps_where(pipe=lambda it: it.len() - 1)
 
     def steps_until(
-        self,
-        where: typing.Optional[typing.Callable] = None,
+        self: Iterator,
+        pipe: typing.Optional[typing.Callable] = None,
+        n: typing.Optional[int] = None,
     ) -> int:
         _, gen = self.gen()
-        res = xt.iTuple.from_while(gen, value = False)
-        return res if where is None else where(res)
+        res = xt.iTuple.from_while(
+            gen,
+            f = Iterator.unpack_accept,
+            value = False,
+            n=n,
+        )
+        return res if pipe is None else pipe(res)
 
-    def n_steps_until(self):
-        return self.steps_until(where=lambda it: it.len())
+    def n_steps_until(self: Iterator) -> int:
+        return self.steps_until(pipe=lambda it: it.len())
         
     def steps_while(
-        self,
-        where: typing.Optional[typing.Callable] = None,
+        self: Iterator,
+        pipe: typing.Optional[typing.Callable] = None,
+        n: typing.Optional[int] = None,
     ) -> int:
         _, gen = self.gen()
-        res = xt.iTuple.from_while(gen, value = True)
-        return res if where is None else where(res)
+        res = xt.iTuple.from_while(
+            gen,
+            f = Iterator.unpack_accept,
+            value = True,
+            n=n,
+        )
+        return res if pipe is None else pipe(res)
 
-    def n_steps_while(self):
-        return self.steps_while(where=lambda it: it.len() - 1)
+    def n_steps_while(self: Iterator) -> int:
+        return self.steps_while(pipe=lambda it: it.len() - 1)
 
 # ---------------------------------------------------------------
 
@@ -230,7 +258,7 @@ def zip_next(gens):
 # ---------------------------------------------------------------
 
 def joint(
-    itrs,
+    itrs: xt.iTuple[Iterator],
     f_done,
     f_accept,
 ):
@@ -246,12 +274,12 @@ def joint(
     _, gens = itrs.map(lambda itr: itr.gen()).zip().map(xt.iTuple)
     
     v_done, v_accept, vs = zip_next(gens)
-    order = i_range.sort(lambda i: (not v_done[i], vs[i]))
+    order = i_range.sortby(lambda i: (not v_done[i], vs[i]))
 
-    acc_i = xt.iTuple()
-    acc_done = xt.iTuple()
-    acc_accept = xt.iTuple()
-    acc_vs = xt.iTuple()
+    acc_i: xt.iTuple[int] = xt.iTuple()
+    acc_done: xt.iTuple[int] = xt.iTuple()
+    acc_accept: xt.iTuple[int] = xt.iTuple()
+    acc_vs: xt.iTuple[DDT] = xt.iTuple()
     
     while not (
         acc_done.len() == itrs.len() 
@@ -267,7 +295,7 @@ def joint(
             ), acc_vs[-1]
             
             v_done, v_accept, vs = zip_next(gens)
-            order = i_range.sort(lambda i: (not v_done[i], vs[i]))
+            order = i_range.sortby(lambda i: (not v_done[i], vs[i]))
             
             acc_accept = acc_accept.clear()
             acc_vs = acc_vs.clear()
@@ -288,6 +316,7 @@ def joint(
 
         if min_done:
             acc_done = acc_done.append(i_min)
+            assert i_next is not None
             order = order.prepend(i_next)
             continue
 
@@ -298,6 +327,7 @@ def joint(
             acc_accept = acc_accept.append(v_accept[i_min])
             acc_vs = acc_vs.append(v_min)
             
+            assert i_next is not None
             order = order.prepend(i_next)
             continue
 
@@ -315,7 +345,8 @@ def joint(
             ), v_min
 
             offset = acc_vs.len() + 1
-
+            
+            assert i_next is not None
             inds = acc_i.append(i_min).append(i_next).extend(order)
             inds_order = inds.argsort()
 
@@ -336,7 +367,7 @@ def joint(
             v_accept = inds_order.map(lambda i: order_v_accept[i])
             vs = inds_order.map(lambda i: order_vs[i])
 
-            order = i_range.sort(lambda i: (not v_done[i], vs[i]))
+            order = i_range.sortby(lambda i: (not v_done[i], vs[i]))
             
             acc_accept = acc_accept.clear()
             acc_vs = acc_vs.clear()
@@ -360,6 +391,8 @@ def joint(
 
         if min_done:
             acc_done = acc_done.append(i_min)
+
+            assert i_next is not None
             order = order.prepend(i_next)
             continue
 

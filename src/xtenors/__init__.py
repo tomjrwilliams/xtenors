@@ -4,14 +4,10 @@ import os
 import sys
 import pathlib
 
-if pathlib.Path(os.getcwd()).parts[-1] == "xtenors":
-    sys.path.append("./__local__")
+sys.path.append("./__local__")
+sys.path.append("./src")
 
-    import PATHS
-
-    if PATHS.XTUPLES not in sys.path:
-        sys.path.append(PATHS.XTUPLES)
-        print(sys.path)
+sys.path.append(os.environ["xtuples"])
 
 # import all modules, so can load individually
 from . import dates

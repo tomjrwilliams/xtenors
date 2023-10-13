@@ -15,7 +15,7 @@ from . import utils
 
 def parse_tenor_py(tenor = "3D"):
     def f():
-        return xtenors.Tenor.parse_py(tenor)
+        return xtenors.Tenor.parse(tenor)
     f.__name__ = utils.outer_func_name()
     return f
 
