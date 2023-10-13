@@ -22,5 +22,5 @@ from . import adjustments
 from .dates import *
 from .units import *
 from .iterators import Iterator
-from .adjustments import adjust
+from .adjustments import adjust, Adjustment
 from .xtenors import Tenor, add
