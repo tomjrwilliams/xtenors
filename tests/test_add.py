@@ -2,9 +2,9 @@
 
 import datetime
 
-from financepy.utils.frequency import FrequencyTypes
-from financepy.utils.day_count import DayCount, DayCountTypes
-from financepy.utils.date import Date as Date
+from financepy.utils.frequency import FrequencyTypes # type: ignore
+from financepy.utils.day_count import DayCount, DayCountTypes # type: ignore
+from financepy.utils.date import Date as Date # type: ignore
 
 import xtenors
 import xtuples as xt

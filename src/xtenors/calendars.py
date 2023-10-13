@@ -339,7 +339,7 @@ date_inclusion_update = functools.partial(
 
 # ---------------------------------------------------------------
 
-import pandas_market_calendars
+import pandas_market_calendars # type: ignore
 
 @xt.nTuple.decorate()
 class Manager_Pandas_Market_Calendar(typing.NamedTuple):
